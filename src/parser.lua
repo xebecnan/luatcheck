@@ -224,8 +224,9 @@ local function simpleexp(e)
     elseif e.tt == '{' then
         return constructor(e)
     elseif e:try_skip('function') then
+        local info = e.info
         local n_parlist, n_block = body(e)
-        return { tag='Function', info=newinfo(e), n_parlist, n_block }
+        return { tag='Function', info=info, n_parlist, n_block }
     else
         return suffixedexp(e)
     end
@@ -245,9 +246,10 @@ local function subexpr(e, limit)
     local binopr = BINOPR_HASH[e.tt]
     while binopr and binopr.left > limit do
         local op = e.tt
+        local info = newinfo(e)
         e:next_token()
         local n2, next_binopr = subexpr(e, binopr.right)
-        n1 = { tag='BinOpr', info=newinfo(e), op, n1, n2 }
+        n1 = { tag='BinOpr', info=info, op, n1, n2 }
         binopr = next_binopr
     end
 

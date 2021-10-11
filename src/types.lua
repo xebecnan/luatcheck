@@ -1,4 +1,9 @@
 
+local sf = string.format
+local errorf = function(...)
+    error(sf(...))
+end
+
 local M = {}
 
 local TYPE_DEF = {
@@ -22,12 +27,12 @@ end
 M.TYPE_NAME2ID = TYPE_NAME2ID
 
 function M.get_type_name(t)
-    local v = TYPE_DEF[t] or error('unknown type: ' .. t)
+    local v = TYPE_DEF[t] or errorf('unknown type: %s', t)
     return v.name
 end
 
 function M.is_bottom_type(t)
-    local v = TYPE_DEF[t] or error('unknown type: ' .. t)
+    local v = TYPE_DEF[t] or errorf('unknown type: %s', t)
     return v.parent == '__ALL_TYPES__'
 end
 
@@ -41,7 +46,7 @@ function M.is_subtype_of(t1, t2)
         if t2 == p then
             return true
         end
-        local v = TYPE_DEF[p] or error('unknown type: ' .. p)
+        local v = TYPE_DEF[p] or errorf('unknown type: %s', p)
         p = v.parent
     end
     return false

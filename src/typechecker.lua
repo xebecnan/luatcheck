@@ -5,11 +5,15 @@ local Util = require 'util'
 local Walk = require('walk')
 -- local seri_func = require 'lib.serialize_lua'
 
-local sf = string.format
 local get_type_name = Types.get_type_name
 local is_subtype_of = Types.is_subtype_of
 local is_basetype = Types.is_basetype
 local to_hash = Util.to_hash
+
+local sf = string.format
+local errorf = function(...)
+    error(sf(...))
+end
 
 ----
 
@@ -73,7 +77,7 @@ end
 
 ----
 
-local function get_node_type(ast)
+local function get_node_type_impl(ast)
     if is_basetype(ast.tag) then
         if ast.tag == 'Table' then
             return { tag='TypeTableProxy', info=ast.info, ast }
@@ -92,16 +96,26 @@ local function get_node_type(ast)
                 return { tag='Id', 'Float' }
             end
 
-            local t1 = get_node_type(ast[2])
-            local t2 = get_node_type(ast[3])
-            if t1 == 'Integer' and t2 == 'Integer' then
-                return { tag='Id', 'Integer' }
-            elseif is_subtype_of(t1, 'Number') and is_subtype_of(t2, 'Number') then
-                return { tag='Id', 'Float' }
-            else
-                ast_error(ast, sf('get_node_type of arith opr error. t1:%s t2:%s', t1, t2))
+            local t1 = get_node_type_impl(ast[2])
+            local t2 = get_node_type_impl(ast[3])
+            if not t1 or not t2 then
                 return nil
             end
+
+            if t1.tag == 'Id' and t2.tag == 'Id' then
+                if t1[1] == 'Any' or t2[1] == 'Any' then
+                    return { tag='Id', 'Any' }
+                end
+
+                if t1[1] == 'Integer' and t2[1] == 'Integer' then
+                    return { tag='Id', 'Integer' }
+                elseif is_subtype_of(t1[1], 'Number') and is_subtype_of(t2[1], 'Number') then
+                    return { tag='Id', 'Float' }
+                end
+            end
+
+            ast_error(ast, sf('get_node_type of arith opr error. t1:%s t2:%s', dump_table(t1), dump_table(t2)))
+            return nil
         else
             ast_error(ast, sf('get_node_type error. bad BinOpr: %s', op))
             return nil
@@ -113,7 +127,7 @@ local function get_node_type(ast)
         elseif IS_BITW_OPR[op] then
             return { tag='Id', 'Integer' }
         elseif IS_ARIT_OPR[op] then
-            return get_node_type(ast[2])
+            return get_node_type_impl(ast[2])
         elseif op == '#' then  -- Length Operator
             return { tag='Id', 'Integer' }
         else
@@ -127,7 +141,7 @@ local function get_node_type(ast)
             if si.tag ~= 'TypeFunction' then
                 ast_error(ast, sf('get_node_type. bad si tag: %s', si.tag))
             else
-                return si[2]
+                return si[2] or errorf('symbol info error. funcname: %s', funcname)
             end
         else
             return { tag='Id', 'Any' }
@@ -136,17 +150,33 @@ local function get_node_type(ast)
         local sname = ast[1]
         local si = find_symbol(ast, sname)
         -- print(sf('sname: %s si: %s scope:%s', sname, si, ast.scope))
-        return si
+        return si or { tag='Id', 'Any' }
     elseif ast.tag == 'IndexShort' then
         -- TODO
         return { tag='Id', 'Any' }
     elseif ast.tag == 'Index' then
         -- TODO
         return { tag='Id', 'Any' }
+    elseif ast.tag == 'Function' then
+        -- TODO
+        return { tag='Id', 'Any' }
     else
         ast_error(ast, 'get_node_type not support: ' .. tostring(ast.tag))
         return nil
     end
+end
+
+local function get_node_type(ast)
+    local msgh = function(s)
+        local s1, s2, s3 = s:match('^([^:]*):(%d+): (.*)$')
+        return debug.traceback(string.format('(%s:%d) %s', s1, s2, s3))
+    end
+    local ok, val = xpcall(get_node_type_impl, msgh, ast)
+    if not ok then
+        ast_error(ast, val)
+        return nil
+    end
+    return val
 end
 
 ----
