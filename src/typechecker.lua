@@ -87,8 +87,10 @@ local function get_node_type_impl(ast)
 
     elseif ast.tag == 'BinOpr' then
         local op = ast[1]
-        if IS_RELA_OPR[op] or IS_LOGI_OPR[op] then
+        if IS_RELA_OPR[op] then
             return { tag='Id', 'Bool' }
+        elseif IS_LOGI_OPR[op] then
+            return get_node_type_impl(ast[3])
         elseif IS_BITW_OPR[op] then
             return { tag='Id', 'Integer' }
         elseif IS_ARIT_OPR[op] then
