@@ -22,3 +22,17 @@ Lua 静态类型检查工具已经有不少了，但是现有的都不完全符�
 
 可以用工具将源码打包到单个 Lua 文件，然后用 [luastatic](https://github.com/ers35/luastatic/) 等工具打包为可执行文件，再通过 [ale](https://github.com/dense-analysis/ale) 插件集成到 vim 开发环境中。
 我自己整合了一个打包工具集，和集成到 vim ale 用的配置文件，不过还没有完全整理好，或许晚点整理好后可以发布到单独的 repo 中。
+
+## examples
+
+```lua
+-->> add :: number, number >> number
+local function add(a, b)
+  return a + b
+end
+
+-->> strlen :: string >> number
+local strlen(s)
+  return #s
+end
+```
