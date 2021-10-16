@@ -100,7 +100,6 @@ local function constructor(e)
                 n[#n+1] = expr(e)
             end
         elseif e:try_skip('[') then
-            local info = e.info
             n[#n+1] = expr(e)
             e:check_skip(']')
             e:check_skip('=')
@@ -286,14 +285,14 @@ end
 
 -- funcname -> NAME {fieldsel} [':' NAME] */
 local function funcname(e)
-    local node = { tag='FuncName', info=newinfo(e), false }
+    local node = { tag='FuncName', info=newinfo(e), invoke=false }
     node[#node+1] = check_identifier(e)
     while e:try_skip('.') do
         node[#node+1] = check_identifier(e)
     end
     if e:try_skip(':') then
         node[#node+1] = check_identifier(e)
-        node[1] = true
+        node.invoke = true
     end
     return node
 end
@@ -420,25 +419,40 @@ local function typearglist(e, n_first)
     return n
 end
 
+local function typetable(e, open)
+    local keys = {}
+    local hash = {}
+    local n_tpobj = { tag='TypeObj', info=newinfo(e), keys=keys, hash=hash, open=open }
+    e:check_skip('{')
+    while true do
+        if e:try_skip('}') then
+            break
+        end
+
+        local n_fieldname = check_identifier(e)
+        e:check_skip(':')
+        local n_fieldtype = typeexp(e)
+        e:check_skip(';')
+
+        local field = n_fieldname[1]
+        keys[#keys+1] = field
+        hash[field] = n_fieldtype
+        -- table.insert(n_tpobj, n_fieldname)
+        -- table.insert(n_tpobj, n_fieldtype)
+    end
+    return n_tpobj
+end
+
 typeexp = function(e)
     local info = newinfo(e)
 
-    if e:try_skip('{') then
-        local n_tpobj = { tag='TypeObj', info=info }
-        while true do
-            if e:try_skip('}') then
-                break
-            end
+    if e.tt == 'ID' and e.tv == 'open' then
+        e:next_token()
+        return typetable(e, true)
+    end
 
-            local n_fieldname = check_identifier(e)
-            e:check_skip(':')
-            local n_fieldtype = typeexp(e)
-            e:check_skip(';')
-
-            table.insert(n_tpobj, n_fieldname)
-            table.insert(n_tpobj, n_fieldtype)
-        end
-        return n_tpobj
+    if e.tt == '{' then
+        return typetable(e, false)
     end
 
     local n_id = nil
@@ -460,9 +474,38 @@ typeexp = function(e)
     return { tag='TypeFunction', info=info, n_args, n_ret }
 end
 
+local function typesuffixedname(e)
+    local n1 = check_identifier(e)
+
+    while true do
+        if e:try_skip('.') then
+            local n2 = check_identifier(e)
+            n1 = { tag='IndexShort', info=newinfo(e), n1, n2 }
+        else
+            break
+        end
+    end
+
+    return n1
+end
+
 local function typestatement(e)
     local info = newinfo(e)
-    local n_id = check_identifier(e)
+
+    if e.tt == 'ID' and e.tv == 'open' then
+        e:next_token()
+        local n_id = typesuffixedname(e)
+        return  { tag='OpenTypeObj', info=info, n_id }
+    end
+
+    if e.tt == 'ID' and e.tv == 'close' then
+        e:next_token()
+        local n_id = typesuffixedname(e)
+        return  { tag='CloseTypeObj', info=info, n_id }
+    end
+
+    -- local n_id = check_identifier(e)
+    local n_id = typesuffixedname(e)
     if e:try_skip('=') then
         local n_type = typeexp(e)
         return { tag='Tpdef', info=info, n_id, n_type }
@@ -636,6 +679,7 @@ return function(c, s, is_file)
         if self.tt == tt then
             self:next_token()
         else
+            print(debug.traceback())
             self:syntax_error(sf('%s expected', tt))
         end
     end
@@ -643,6 +687,7 @@ return function(c, s, is_file)
     function e:check_save(tt, consume, noerr)
         if self.tt ~= tt then
             if not noerr then
+                print(debug.traceback())
                 self:syntax_error(sf('%s expected', tt))
             end
             return false

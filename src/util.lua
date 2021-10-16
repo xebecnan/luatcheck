@@ -1,3 +1,5 @@
+local sf = string.format
+
 local M = {}
 
 function M.to_hash(t)
@@ -18,6 +20,20 @@ function M.concat(...)
         end
     end
     return t
+end
+
+function M.dump_table(t)
+    if type(t) == 'table' then
+        local b = {}
+        b[#b+1] = '{'
+        for k, v in pairs(t) do
+            b[#b+1] = sf('%s=%s,', k, v)
+        end
+        b[#b+1] = '}'
+        return table.concat(b, ' ')
+    else
+        return tostring(t)
+    end
 end
 
 return M

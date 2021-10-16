@@ -69,7 +69,7 @@ function F:Fornum(ast)
 end
 
 function F:FuncName(ast)
-    for i = 2, #ast do
+    for i = 1, #ast do
         walk(self, ast[i])
     end
 end
@@ -199,10 +199,19 @@ function F:TypeFunction(ast)
 end
 
 function F:TypeObj(ast)
-    for i = 1, #ast, 2 do
-        walk(self, ast[i])
-        walk(self, ast[i+1])
+    local keys = ast.keys
+    local hash = ast.hash
+    for _, k in ipairs(keys) do
+        walk(self, hash[k])
     end
+end
+
+function F:OpenTypeObj(ast)
+    walk(self, ast[1])
+end
+
+function F:CloseTypeObj(ast)
+    walk(self, ast[1])
 end
 
 function F:UnOpr(ast)
