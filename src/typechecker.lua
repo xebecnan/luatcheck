@@ -58,6 +58,8 @@ local function find_id_symbol_or_type(scope_field, ast)
     return nil
 end
 
+local get_node_type
+
 -- 找不到的话返回 nil
 -->> find_symbol_or_type :: string, AstNode, boolean, any >> any
 local function find_symbol_or_type(scope_field, ast, setflag, setval)
@@ -76,6 +78,13 @@ local function find_symbol_or_type(scope_field, ast, setflag, setval)
         assert(ast[2].tag == 'Id')
         local si1 = find_symbol_or_type(scope_field, ast[1])
         if si1 then
+            if si1.tag == 'Id' and si1[1] == 'Any' then
+                return nil
+            end
+            if si1.tag ~= 'TypeObj' then
+                ast_error(ast, "index a non-table value")
+                return nil
+            end
             if setflag then
                 local name = ast[2][1]
                 if si1.hash[name] then
@@ -114,6 +123,8 @@ local function find_symbol_or_type(scope_field, ast, setflag, setval)
             end
         end
         return tt
+    elseif ast.tag == 'Call' then
+        return get_node_type(ast)
     else
         ast_error(ast, 'find_symbol_or_type not support tag: %s', ast.tag)
         return nil
@@ -220,7 +231,7 @@ local function get_node_type_impl(ast)
     end
 end
 
-local function get_node_type(ast)
+get_node_type = function(ast)
     local msgh = function(s)
         local s1, s2, s3 = s:match('^([^:]*):(%d+): (.*)$')
         return debug.traceback(string.format('(%s:%d) %s', s1, s2, s3))
