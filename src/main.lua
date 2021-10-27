@@ -4,7 +4,7 @@ local Typechecker = require('typechecker')
 local SerializeAst = require 'serialize_ast'
 
 local function usage()
-    print('usage: typechecker.exe file1, ...')
+    print('usage: typechecker.exe [--filename stdin_filename] file1, ...')
 end
 
 --------------------------------
@@ -22,17 +22,25 @@ end
 
 --------------------------------
 
-local function check_file(filepath)
-    local f = io.open(filepath, 'r')
-    if not f then
-        io.stderr:write("file not found: " .. filepath .. "\n")
-        return
+local function check_file(filepath, stdin_filename)
+    local f
+    local filename
+    if filepath == '-' then
+        f = io.stdin
+        filename = stdin_filename or '=stdin'
+    else
+        filename = filepath
+        f = io.open(filename, 'r')
+        if not f then
+            io.stderr:write("file not found: " .. filename .. "\n")
+            return
+        end
     end
 
     local c = f:read('a')
     f:close()
 
-    local ast = Parser(c, filepath, true)
+    local ast = Parser(c, filename, true)
     if ast then
         -- print('-------------------------- Binder')
         -- print(SerializeAst(ast))
@@ -66,9 +74,20 @@ end
 local function main(...)
     local n = select('#', ...)
     if n > 0 then
+        local mode = nil
+        local stdin_filename = nil
         for i = 1, n do
             local s = select(i, ...)
-            check_file(s)
+            if mode == 'STDIN_FILENAME' then
+                stdin_filename = s
+                mode = nil
+            else
+                if s == '--filename' then
+                    mode = 'STDIN_FILENAME'
+                else
+                    check_file(s, stdin_filename)
+                end
+            end
         end
     else
         usage()
