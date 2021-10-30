@@ -397,28 +397,6 @@ end
 
 local typeexp
 
-local function primarytype(e)
-    if e:try_skip('(') then
-        local n = typeexp(e)
-        e:check_skip(')')
-        return n
-    elseif e.tt == 'ID' then
-        return check_identifier(e)
-    elseif e:try_skip('...') then
-        return { tag='VarArg', info=e.info }
-    else
-        e:syntax_error('unexpected symbol')
-    end
-end
-
-local function typearglist(e, n_first)
-    local n = { tag='TypeArgList', info=newinfo(e), n_first }
-    repeat
-        n[#n+1] = primarytype(e)
-    until not e:try_skip(',')
-    return n
-end
-
 local function typetable(e, open)
     local keys = {}
     local hash = {}
@@ -443,33 +421,55 @@ local function typetable(e, open)
     return n_tpobj
 end
 
+local function primarytype(e)
+    local n
+    local info = newinfo(e)
+    if e.tt == 'ID' and e.tv == 'open' then
+        e:next_token()
+        n = typetable(e, true)
+    elseif e.tt == '{' then
+        n = typetable(e, false)
+    elseif e:try_skip('(') then
+        n = typeexp(e)
+        e:check_skip(')')
+    elseif e.tt == 'ID' then
+        n = check_identifier(e)
+    elseif e:try_skip('...') then
+        return { tag='VarArg', info=e.info }
+    else
+        e:syntax_error(sf("'ID' expected"))
+        return { tag='ID', info=newinfo(e), 'Any' }
+    end
+
+    if e:try_skip('?') then
+        n = { tag='OptArg', info=info, n }
+    end
+
+    return n
+end
+
+-- 返回一个 Type
 typeexp = function(e)
     local info = newinfo(e)
 
-    if e.tt == 'ID' and e.tv == 'open' then
-        e:next_token()
-        return typetable(e, true)
+    local n = primarytype(e)
+
+    -- 不是 TypeFunction
+    if e.tt ~= ',' and e.tt ~= '>>' then
+        print('e.tt:', e.tt)
+        return n
     end
 
-    if e.tt == '{' then
-        return typetable(e, false)
+    -- 是 TypeFunction
+
+    local n_args = { tag='TypeArgList', info=info, n }
+
+    while e:try_skip(',') do
+        n_args[#n_args+1] = primarytype(e)
     end
 
-    local n_id = nil
-    if e.tt == 'ID' then
-        n_id = check_identifier(e)
-        if not e:try_skip(',') and e.tt ~='>>' then
-            return n_id
-        end
-    end
-
-    local n_args
-    if n_id and e.tt == '>>' then
-        n_args = { tag='TypeArgList', info=newinfo(e), n_id }
-    else
-        n_args = typearglist(e, n_id)
-    end
     e:check_skip('>>')
+
     local n_ret = primarytype(e)
     return { tag='TypeFunction', info=info, n_args, n_ret }
 end
@@ -680,7 +680,7 @@ return function(c, s, is_file)
             self:next_token()
         else
             print(debug.traceback())
-            self:syntax_error(sf('%s expected', tt))
+            self:syntax_error(sf("'%s' expected", tt))
         end
     end
 
@@ -688,7 +688,7 @@ return function(c, s, is_file)
         if self.tt ~= tt then
             if not noerr then
                 print(debug.traceback())
-                self:syntax_error(sf('%s expected', tt))
+                self:syntax_error(sf("'%s' expected", tt))
             end
             return false
         end

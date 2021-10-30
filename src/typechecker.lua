@@ -389,6 +389,8 @@ get_full_type_name = function(ast)
         return dump_type_table(ast[1])
     elseif ast.tag == 'VarArg' then
         return '...'
+    elseif ast.tag == 'OptArg' then
+        return get_full_type_name(ast[1]) .. '?'
     -- elseif ast.tag == 'CloseTypeObj' then
     --     error
     else
@@ -452,6 +454,10 @@ match_type = function(expect, given)
         end
     elseif expect.tag == 'VarArg' then
         return true
+    elseif expect.tag == 'OptArg' then
+        if match_type(expect[1], given) then
+            return true
+        end
     elseif given.tag == 'TypeFunction' then
         if expect.tag == 'TypeFunction' then
             if match_func_type(expect, given) then
@@ -497,9 +503,35 @@ local function match_node_type(node, tp)
     -- end
 end
 
+local function dump_funcname_aux(b, ast)
+    if ast.tag == 'Id' then
+        b[#b+1] = ast[1]
+    elseif ast.tag == 'IndexShort' then
+        assert(ast[2].tag == 'Id')
+        dump_funcname_aux(b, ast[1])
+        b[#b+1] = '.'
+        b[#b+1] = ast[2][1]
+    elseif ast.tag == 'Index' then
+        dump_funcname_aux(b, ast[1])
+        b[#b+1] = '[...]'
+    elseif ast.tag == 'Invoke' then
+        assert(ast[2].tag == 'Id')
+        dump_funcname_aux(b, ast[1])
+        b[#b+1] = ':'
+        b[#b+1] = ast[2][1]
+    end
+    b[#b+1] = '()'
+end
+
+local function dump_funcname(ast)
+    local b = {}
+    dump_funcname_aux(b, ast)
+    return table.concat(b, '')
+end
+
 function F:Call(ast, env, walk_node)
     local n_funcname    = ast[1]
-    local n_parlist     = ast[2]
+    local n_arglist     = ast[2]
 
     local si = find_symbol(n_funcname)
     -- print('CALL', dump_table(n_funcname), '---->', dump_table(si))
@@ -509,39 +541,43 @@ function F:Call(ast, env, walk_node)
         return
     end
 
-    if si.tag ~= 'TypeFunction' then
+    local n_parlist
+    if si.tag == 'TypeFunction' then
+        n_parlist = si[1]
+    elseif si.tag == 'OptArg' and si[1].tag == 'TypeFunction' then
+        n_parlist = si[1][1]
+    else
         error(sf("expect 'TypeFunction', but given '%s'", si.tag))
     end
 
-    local n_args = si[1]
-    -- local n_ret = si[2]
-
-    local j = 0
+    local i_par = 1
     local error_flag = false
-    for i = 1, #n_parlist do
-        local arg_given = n_parlist[i]
-        local arg_expet = n_args[j+1]
-        if not arg_expet then
-            ast_error(ast, "redundant arg #%d (%s)", i, get_full_type_name(get_node_type(arg_given)))
+    for i_arg = 1, #n_arglist do
+        local n_given = n_arglist[i_arg]
+        local n_expet = n_parlist[i_par]
+        if not n_expet then
+            ast_error(ast, "too many arguments to function '%s'", dump_funcname(n_funcname))
             error_flag = true
             break
         end
-        local ok, err = match_node_type(arg_given, arg_expet)
+        local ok, err = match_node_type(n_given, n_expet)
+        print(i_arg, 'match', dump_table(n_given), dump_table(n_expet), '==>', ok)
         if not ok then
-            ast_error(ast, sf('arg #%d, %s', j+1, err))
+            ast_error(ast, sf('arg #%d, %s', i_par, err))
             error_flag = true
             break
         end
 
-        if arg_expet and arg_expet.tag ~= 'VarArg' then
-            j = j + 1
+        if n_expet and n_expet.tag ~= 'VarArg' then
+            i_par = i_par + 1
         end
     end
 
-    if not error_flag and j < #n_args then
-        local arg_expet = n_args[j+1]
-        if arg_expet.tag ~= 'VarArg' then
-            ast_error(ast, "missing arg #%d (%s)", j+1, get_full_type_name(arg_expet))
+    if not error_flag and i_par <= #n_parlist then
+        local n_expet = n_parlist[i_par]
+        if n_expet.tag ~= 'VarArg' and n_expet.tag ~= 'OptArg' then
+            ast_error(ast, "missing arg #%d (%s) to function '%s'",
+                i_par, get_full_type_name(n_expet), dump_funcname(n_funcname))
         end
     end
 
@@ -615,6 +651,8 @@ local function convert_type(ast)
         return nn
     -- elseif ast.tag == 'CloseTypeObj' then
     --     return { tag='CloseTypeObj', info=ast.info }
+    elseif ast.tag == 'OptArg' then
+        return { tag='OptArg', info=ast.info, convert_type(ast[1]) }
     else
         error('unknown type node tag: ' .. ast.tag)
     end
@@ -687,13 +725,13 @@ function F:LocalFunctionDef(ast, env, walk_node)
     local si = find_symbol(n_funcname)
     if si then
         assert(si.tag == 'TypeFunction')
-        local n_args = si[1]
+        local par_types = si[1]
 
         -- match parlist
         local i = 1
         local error_flag = false
         for _ = 1, #n_parlist do
-            local n_type = n_args[i]
+            local n_type = par_types[i]
             if not n_type then
                 ast_error(ast, 'redundant arg #%d', i)
                 error_flag = true
@@ -705,8 +743,8 @@ function F:LocalFunctionDef(ast, env, walk_node)
             end
         end
 
-        if not error_flag and i <= #n_args then
-            local n_type = n_args[i]
+        if not error_flag and i <= #par_types then
+            local n_type = par_types[i]
             if n_type.tag ~= 'VarArg' then
                 ast_error(ast, 'missing arg #%d (%s)', i, get_full_type_name(n_type))
             end
