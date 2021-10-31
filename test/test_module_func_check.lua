@@ -8,9 +8,12 @@ end
 
 -->> M.func_to_be_checked :: void >> void
 function M.func_to_be_checked()
+    -- ok
     M.strlen('a')
-    M.strlen(1)
     M.func_defined_after(1)
+
+    -- error
+    M.strlen(1)
     M.func_defined_after('a')
 end
 

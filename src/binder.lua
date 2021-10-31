@@ -6,20 +6,7 @@ local Util = require 'util'
 local TYPE_NAME2ID = Types.TYPE_NAME2ID
 local sf = string.format
 local ast_error = Util.ast_error
-
-local function find_id_symbol_or_type(scope_field, ast)
-    assert(ast.tag == 'Id')
-    local scope = ast.scope
-    local name = ast[1]
-    while scope do
-        local si = scope[scope_field][name]
-        if si then
-            return si
-        end
-        scope = scope.parent
-    end
-    return nil
-end
+local dump_table = Util.dump_table
 
 local function convert_type(ast)
     if ast.tag == 'TypeFunction' then
@@ -65,6 +52,8 @@ local function convert_type(ast)
     --     return { tag='CloseTypeObj', info=ast.info }
     elseif ast.tag == 'OptArg' then
         return { tag='OptArg', info=ast.info, convert_type(ast[1]) }
+    elseif ast.tag == 'Require' then
+        return { tag='Require', info=ast.info, convert_type(ast[1]) }
     else
         error('unknown type node tag: ' .. ast.tag)
     end
@@ -95,8 +84,9 @@ function F:LocalFunctionDef(ast, env, walk_node)
     local n_parlist     = ast[2]
 
     local si = Symbols.find_var(n_funcname)
-    if si then
-        assert(si.tag == 'TypeFunction')
+    if si.tag == 'Id' and si[1] == 'Any' then
+        Symbols.set_var(n_funcname, { tag='Id', 'Any' })
+    else
         local par_types = si[1]
 
         -- match parlist
@@ -127,6 +117,41 @@ function F:LocalFunctionDef(ast, env, walk_node)
     end
 
     walk_node(self, ast)
+end
+
+function F:Local(ast, env, walk_node)
+    local n_namelist = ast[1]
+    local n_explist = ast[2]
+    for  i = 1, #n_namelist do
+        local n_name = n_namelist[i]
+        local name_type = Symbols.find_var(n_name)
+        -- 没有类型信息的话，则为其创建类型信息
+        if name_type.tag == 'Id' and name_type[1] == 'Any' then
+            local n_exp = n_explist[i]
+            if n_exp then
+                -- lazy
+                local exp_type = { tag='TypeOfExpr', n_exp }
+                Symbols.set_var(n_name, exp_type)
+            else
+                -- 先设置为 any，之后可以进一步细化
+                Symbols.set_var(n_name, { tag='Id', 'Any' })
+            end
+        end
+    end
+end
+
+function F:Return(ast, env, walk_node)
+    local block = ast.scope
+    -- 只处理文件层的 return
+    if block.tag == 'Block' and block.is_file then
+        local mod_type
+        if ast[1][1] then
+            mod_type = { tag='TypeOfExpr', ast[1][1] }
+        else
+            mod_type = { tag='Id', 'Any' }
+        end
+        Symbols.set_var(ast.scope, mod_type)
+    end
 end
 
 --------------------------------

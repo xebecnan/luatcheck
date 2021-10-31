@@ -42,6 +42,8 @@ local IS_LOGI_OPR = to_hash(LOGI_OPR)
 local IS_BITW_OPR = to_hash(BITW_OPR)
 local IS_ARIT_OPR = to_hash(ARIT_OPR)
 
+local require_cache = {}
+
 function M.get_type_name(t)
     local v = TYPE_DEF[t] or errorf('unknown type: %s', t)
     return v.name
@@ -73,11 +75,61 @@ function M.is_basetype(t)
 end
 
 --------------------------------
+local get_node_type_impl
 
-local function get_node_type_impl(ast)
+local function build_typetable(ast)
+    assert(ast.tag == 'Table')
+    local keys = {}
+    local hash = {}
+    local n_tpobj = { tag='TypeObj', info=ast.info, keys=keys, hash=hash, open=false }
+    for i = 1, #ast, 2 do
+        local nk = ast[i]
+        local nv = ast[i+1]
+        if nk == 'Integer' or nk == 'Id' then
+            local k = nk[1]
+            keys[#keys+1] = k
+            hash[k] = get_node_type_impl(nv)
+        end
+    end
+    return n_tpobj
+end
+
+local function handle_require(require_path)
+    -- print('require found:', require_path)
+    local require_type = require_cache[require_path]
+    if not require_type then
+        local filename = require_path:gsub('%.', '\\') .. '.lua'
+        -- print('filename:', filename)
+        local f = io.open(filename, 'r')
+        if f then
+            local c = f:read('a')
+            f:close()
+
+            local Parser = require('parser')
+            local Scoper = require('scoper')
+            local Builtin = require('builtin')
+            local Binder = require('binder')
+
+            local ast = Parser(c, filename, true)
+            if ast then
+                Scoper(ast)
+                local root = Builtin(ast)
+                Binder(root)
+                local file_block = root[1]
+                assert(file_block.is_file == true)
+                require_type = Symbols.find_var(file_block)
+            end
+        end
+        require_type = require_type or { tag='Id', 'Any' }
+        require_cache[require_path] = require_type
+    end
+    return require_type
+end
+
+get_node_type_impl = function(ast)
     if M.is_basetype(ast.tag) then
         if ast.tag == 'Table' then
-            return { tag='TypeTableProxy', info=ast.info, ast }
+            return build_typetable(ast)
         end
 
         return { tag='Id', ast.tag, ast }
@@ -113,10 +165,12 @@ local function get_node_type_impl(ast)
                 end
             end
 
-            ast_error(ast, sf('get_node_type of arith opr error. t1:%s t2:%s', dump_table(t1), dump_table(t2)))
+            ast_error(ast, 'get_node_type of arith opr error. t1:%s t2:%s', dump_table(t1), dump_table(t2))
             return nil
+        elseif op == '..' then
+            return { tag='Id', 'Str' }
         else
-            ast_error(ast, sf('get_node_type error. bad BinOpr: %s', op))
+            ast_error(ast, 'get_node_type error. bad BinOpr: %s', op)
             return nil
         end
     elseif ast.tag == 'UnOpr' then
@@ -130,11 +184,24 @@ local function get_node_type_impl(ast)
         elseif op == '#' then  -- Length Operator
             return { tag='Id', 'Integer' }
         else
-            ast_error(ast, sf('get_node_type error. bad UnOpr: %s', op))
+            ast_error(ast, 'get_node_type error. bad UnOpr: %s', op)
             return nil
         end
     elseif ast.tag == 'Call' then
-        return Symbols.find_var(ast[1])
+        local si = Symbols.find_var(ast[1])
+        if si.tag == 'TypeFunction' then
+            return si[2]
+        elseif si.tag == 'Require' then
+            assert(ast[2].tag == 'ExpList')
+            assert(ast[2][1].tag == 'Str')
+            local require_path = ast[2][1][1]
+            return handle_require(require_path)
+        elseif si.tag == 'Id' and si[1] == 'Any' then
+            return { tag='Id', 'Any' }
+        else
+            ast_error(ast, 'bad function symbol info: %s', si.tag)
+            return { tag='Id', 'Any' }
+        end
     elseif ast.tag == 'Id' then
         return Symbols.find_var(ast)
     elseif ast.tag == 'IndexShort' then
@@ -150,7 +217,7 @@ local function get_node_type_impl(ast)
         return { tag='VarArg', info=ast.info }
     else
         ast_error(ast, 'get_node_type not support: ' .. tostring(ast.tag))
-        return nil
+        return { tag='Id', 'Any' }
     end
 end
 
@@ -237,6 +304,8 @@ function M.get_full_type_name(ast)
         return '...'
     elseif ast.tag == 'OptArg' then
         return M.get_full_type_name(ast[1]) .. '?'
+    elseif ast.tag == 'Require' then
+        return '(require) ' .. M.get_full_type_name(ast[1])
     -- elseif ast.tag == 'CloseTypeObj' then
     --     error
     else

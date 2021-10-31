@@ -94,13 +94,11 @@ function F:Local(ast, env, walk_node)
         local n_name = n_namelist[i]
         local n_exp = n_explist[i]
         if n_exp then
+            local expect_type = Symbols.find_var(n_name)
             local given_type = Types.get_node_type(n_exp)
-            if given_type then
-                local expect_type = Symbols.find_var(n_name) or { tag='Id', 'Any' }
-                local ok, err = match_type(expect_type, given_type)
-                if not ok then
-                    ast_error(ast, err)
-                end
+            local ok, err = match_type(expect_type, given_type)
+            if not ok then
+                ast_error(ast, err)
             end
         end
     end
@@ -126,44 +124,81 @@ local function match_func_type(expect, given)
 end
 
 local function match_table(expect, given)
-    local og = {}  -- Only in Given
-    local oe = {}  -- Only in Expect
-    local matched = true
+    local only_in_given = {}  -- Only in Given
 
     -- 'TypeTableProxy
-    local given_ast = given[1]
-    for i = 1, #given_ast, 2 do
-        local nk = given_ast[i]
-        local nv = given_ast[i+1]
-        if nk.tag == 'Integer' then
-            og[nk[1]] = nv
-        elseif nk.tag == 'Id' then
-            og[nk[1]] = nv
-        else
-            ast_error(nk, 'cannot determin the type of key')
+    if given.tag == 'TypeObj' then
+        local keys = expect.keys
+        local hash = expect.hash
+        for _, k in ipairs(keys) do
+            local n_fieldtype = hash[k]
+            only_in_given[k] = n_fieldtype
         end
+    elseif given.tag == 'TypeTableProxy' then
+        local given_ast = given[1]
+        for i = 1, #given_ast, 2 do
+            local nk = given_ast[i]
+            local nv = given_ast[i+1]
+            if nk.tag == 'Integer' then
+                only_in_given[nk[1]] = nv
+            elseif nk.tag == 'Id' then
+                only_in_given[nk[1]] = nv
+            else
+                ast_error(nk, 'cannot determin the type of key')
+            end
+        end
+    else
+        ast_error(expect, 'unknown table tag: %s', expect.tag)
+        return false
     end
 
-    -- 'TypeObj
-    local keys = expect.keys
-    local hash = expect.hash
-    for _, k in ipairs(keys) do
-        local n_fieldtype = hash[k]
-        local to_match = og[k]
-        if to_match then
-            og[k] = nil
+    if expect.tag == 'TypeObj' then
+        local keys = expect.keys
+        local hash = expect.hash
+        for _, k in ipairs(keys) do
+            local n_fieldtype = hash[k]
+            local to_match = only_in_given[k]
+            if not to_match then
+                -- only in expect
+                return false
+            end
+
+            only_in_given[k] = nil
             local to_match_type = Types.get_node_type(to_match)
-            local ok, _ = match_type(n_fieldtype, to_match_type)
-            if not ok then
-                matched = false
+            if not match_type(n_fieldtype, to_match_type) then
+                -- not match
+                return false
                 -- ast_error(to_match, err)
             end
-        else
-            oe[k] = n_fieldtype
         end
+    elseif expect.tag == 'TypeTableProxy' then
+        local expect_ast = expect[1]
+        for i = 1, #expect_ast, 2 do
+            local nk = expect_ast[i]
+            local nv = expect_ast[i+1]
+            if nk.tag == 'Integer' or nk.tag == 'Id' then
+                local k = nk[1]
+                local given_ast = only_in_given[k]
+                if not given_ast then
+                    -- only in expect
+                    return false
+                end
+
+                only_in_given[k] = nil
+                local given_type = Types.get_node_type(given_ast)
+                local expect_type = Types.get_node_type(nv)
+                if not match_type(expect_type, given_type) then
+                    -- not match
+                    return false
+                end
+            end
+        end
+    else
+        ast_error(expect, 'unknown table tag: %s', expect.tag)
+        return false
     end
 
-    return matched and not next(og) and not next(oe)
+    return not next(only_in_given)
 end
 
 match_type = function(expect, given)
@@ -175,7 +210,11 @@ match_type = function(expect, given)
         return true
     end
 
-    if expect.tag == 'Id' and given.tag == 'Id' then
+    if expect.tag == 'Require' and given.tag == 'Require' then
+        if match_type(expect[1], given[1]) then
+            return true
+        end
+    elseif expect.tag == 'Id' and given.tag == 'Id' then
         if is_subtype_of(given[1], expect[1]) then
             return true
         end
@@ -185,18 +224,30 @@ match_type = function(expect, given)
         if match_type(expect[1], given) then
             return true
         end
-    elseif given.tag == 'TypeFunction' then
-        if expect.tag == 'TypeFunction' then
+    elseif expect.tag == 'TypeFunction' then
+        if given.tag == 'TypeFunction' then
             if match_func_type(expect, given) then
                 return true
             end
         end
-    elseif given.tag == 'TypeTableProxy' then
-        if expect.tag == 'TypeObj' then
+    elseif expect.tag == 'TypeTableProxy' then
+        if given.tag == 'TypeTableProxy' then
             if match_table(expect, given) then
                 return true
             end
-        elseif expect.tag == 'TypeAlias' then
+        end
+    elseif expect.tag == 'TypeObj' then
+        if given.tag == 'TypeObj' then
+            if match_table(expect, given) then
+                return true
+            end
+        elseif given.tag == 'TypeTableProxy' then
+            if match_table(expect, given) then
+                return true
+            end
+        end
+    elseif expect.tag == 'TypeAlias' then
+        if given.tag == 'TypeTableProxy' then
             if match_type(expect[2], given) then
                 return true
             end
@@ -247,12 +298,12 @@ local function dump_funcname_aux(b, ast)
         b[#b+1] = ':'
         b[#b+1] = ast[2][1]
     end
-    b[#b+1] = '()'
 end
 
 local function dump_funcname(ast)
     local b = {}
     dump_funcname_aux(b, ast)
+    b[#b+1] = '()'
     return table.concat(b, '')
 end
 
@@ -261,9 +312,7 @@ function F:Call(ast, env, walk_node)
     local n_arglist     = ast[2]
 
     local si = Symbols.find_var(n_funcname)
-    -- print('CALL', dump_table(n_funcname), '---->', dump_table(si))
     if not si then
-        -- return ast_error(ast, 'cannot find type info for: %s', funcname)
         walk_node(self, ast)
         return
     end
@@ -273,6 +322,12 @@ function F:Call(ast, env, walk_node)
         n_parlist = si[1]
     elseif si.tag == 'OptArg' and si[1].tag == 'TypeFunction' then
         n_parlist = si[1][1]
+    elseif si.tag == 'Require' then
+        n_parlist = si[1][1]
+    elseif si.tag == 'Id' and si[1] == 'Any' then
+        -- 调用的函数为 any 类型，跳过检查
+        walk_node(self, ast)
+        return
     else
         error(sf("expect 'TypeFunction', but given '%s'", si.tag))
     end

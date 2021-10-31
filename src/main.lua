@@ -1,25 +1,12 @@
 local Parser = require('parser')
 local Scoper = require('scoper')
 local Binder = require('binder')
+local Builtin = require('builtin')
 local Typechecker = require('typechecker')
 local SerializeAst = require 'serialize_ast'
 
 local function usage()
     print('usage: typechecker.exe [--filename stdin_filename] file1, ...')
-end
-
---------------------------------
-
-local BUILTIN = [[
--->> print :: ... >> void
--->> require :: string >> module
-]]
-
-local function init_global_symbols()
-    local ast = Parser(BUILTIN, 'BUILTIN')
-    Scoper(ast)
-    Binder(ast)
-    return ast.symbols
 end
 
 --------------------------------
@@ -48,9 +35,7 @@ local function check_file(filepath, stdin_filename)
         -- print(SerializeAst(ast))
         Scoper(ast)
 
-        local root = { tag='Block', info=ast.info, symbols=init_global_symbols(), types={}, ast }
-        ast.parent = root
-        root.scope = root
+        local root = Builtin(ast)
 
         -- print('-------------------------- Typechecker')
         local function msgh(s)

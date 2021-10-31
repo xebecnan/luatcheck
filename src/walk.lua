@@ -150,9 +150,7 @@ function F:Repeat(ast)
 end
 
 function F:Return(ast)
-    if ast[1] then
-        walk(self, ast[1])
-    end
+    walk(self, ast[1])
 end
 
 function F:Set(ast)
@@ -232,6 +230,10 @@ function F:OptArg(ast)
 end
 
 function F:DumpVar(ast)
+    walk(self, ast[1])
+end
+
+function F:Require(ast)
     walk(self, ast[1])
 end
 

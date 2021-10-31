@@ -352,16 +352,17 @@ end
 
 -- stat -> RETURN [explist] [';']
 local function retstat(e)
-    local n = { tag='Return', info=newinfo(e) }
+    local info = newinfo(e)
+    local expr_list
     if e:try_skip(';') then
-        return n
+        expr_list = { tag='ExpList', info=info }
     elseif IS_CLOSE_BLOCK[e.tt] then
-        return n
+        expr_list = { tag='ExpList', info=info }
     else
-        n[#n+1] = explist(e)
+        expr_list = explist(e)
         e:try_skip(';')
-        return n
     end
+    return { tag='Return', info=newinfo(e), expr_list }
 end
 
 local function fornum(e, n_var1)
@@ -427,6 +428,9 @@ local function primarytype(e)
     if e.tt == 'ID' and e.tv == 'open' then
         e:next_token()
         n = typetable(e, true)
+    elseif e.tt == 'ID' and e.tv == 'handle_require' then
+        e:next_token()
+        n = { tag='Require', info=info, primarytype(e) }
     elseif e.tt == '{' then
         n = typetable(e, false)
     elseif e:try_skip('(') then
