@@ -1,5 +1,6 @@
 local Parser = require('parser')
 local Scoper = require('scoper')
+local Binder = require('binder')
 local Typechecker = require('typechecker')
 local SerializeAst = require 'serialize_ast'
 
@@ -11,12 +12,13 @@ end
 
 local BUILTIN = [[
 -->> print :: ... >> void
+-->> require :: string >> module
 ]]
 
 local function init_global_symbols()
     local ast = Parser(BUILTIN, 'BUILTIN')
     Scoper(ast)
-    Typechecker(ast)
+    Binder(ast)
     return ast.symbols
 end
 
@@ -62,12 +64,22 @@ local function check_file(filepath, stdin_filename)
                 return debug.traceback(s)
             end
         end
-        local ok, msg = xpcall(Typechecker, msgh, root)
+
+        local ok, msg
+
+        ok, msg = xpcall(Binder, msgh, root)
         if not ok then
             print(msg)
-        -- else
-        --     print(SerializeAst(root))
+            return
         end
+
+        ok, msg = xpcall(Typechecker, msgh, root)
+        if not ok then
+            print(msg)
+            return
+        end
+
+        -- print(SerializeAst(root))
     end
 end
 

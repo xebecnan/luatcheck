@@ -6,7 +6,7 @@ local function assert_func(v)
 end
 
 
-function foo()
+local function foo()
     -->> bar :: number >> number
     local function bar(v)
         return v + 1
@@ -23,7 +23,7 @@ function foo()
     assert_func(10)
 end
 
-function bar()
+local function bar()
     -->> bar :: string >> number
     local function bar(v)
         return #v

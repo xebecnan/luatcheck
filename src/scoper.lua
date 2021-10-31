@@ -6,8 +6,7 @@ local Walk = require('walk')
 
 local function init_scope(ast, parent)
     ast.parent = parent
-    ast.symbols = {}
-    ast.types = {}
+    ast.symbols = { types={}, vars={} }
 end
 
 local function enter_scope(ast, env)

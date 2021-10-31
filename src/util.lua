@@ -36,4 +36,9 @@ function M.dump_table(t)
     end
 end
 
+function M.ast_error(ast, fmt, ...)
+    local info = ast and ast.info or {}
+    print(sf('%s:%d: ' .. fmt, info.filename or '?', info.line or 0, ...))
+end
+
 return M

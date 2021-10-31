@@ -3,13 +3,12 @@
 local Types = require('types')
 local Util = require 'util'
 local Walk = require('walk')
+local Symbols = require('symbols')
 
 local get_type_name = Types.get_type_name
 local is_subtype_of = Types.is_subtype_of
 local is_basetype = Types.is_basetype
-local to_hash = Util.to_hash
 local dump_table = Util.dump_table
-local TYPE_NAME2ID = Types.TYPE_NAME2ID
 
 local sf = string.format
 local errorf = function(...)
@@ -17,16 +16,6 @@ local errorf = function(...)
 end
 
 ----
-
-local RELA_OPR = { '==', '~=', '<', '>', '<=', '>=' }
-local LOGI_OPR = { 'and', 'or', 'not' }
-local BITW_OPR = { '&', '|', '~', '>>', '<<', '~' }
-local ARIT_OPR = { '+', '-', '*', '/', '//', '%', '^'}
-
-local IS_RELA_OPR = to_hash(RELA_OPR)
-local IS_LOGI_OPR = to_hash(LOGI_OPR)
-local IS_BITW_OPR = to_hash(BITW_OPR)
-local IS_ARIT_OPR = to_hash(ARIT_OPR)
 
 ----
 
@@ -56,192 +45,6 @@ local function find_id_symbol_or_type(scope_field, ast)
         scope = scope.parent
     end
     return nil
-end
-
-local get_node_type
-
--- 找不到的话返回 nil
--->> find_symbol_or_type :: string, AstNode, boolean, any >> any
-local function find_symbol_or_type(scope_field, ast, setflag, setval)
-    if ast.tag == 'Id' then
-        if setflag then
-            local name = ast[1]
-            if ast.scope[scope_field][name] then
-                ast_error(ast, "symbol '%s' is overwritten", name)
-            end
-            ast.scope[scope_field][name] = setval
-            return setval
-        else
-            return find_id_symbol_or_type(scope_field, ast)
-        end
-    elseif ast.tag == 'IndexShort' or ast.tag == 'Invoke' then
-        assert(ast[2].tag == 'Id')
-        local si1 = find_symbol_or_type(scope_field, ast[1])
-        if si1 then
-            if si1.tag == 'Id' and si1[1] == 'Any' then
-                return nil
-            end
-            if si1.tag ~= 'TypeObj' then
-                ast_error(ast, "index a non-table value")
-                return nil
-            end
-            if setflag then
-                local name = ast[2][1]
-                if si1.hash[name] then
-                    ast_error(ast, "symbol '%s' is overwritten", name)
-                end
-                si1.hash[name] = setval
-                return setval
-            else
-                return si1.hash[ast[2][1]]
-            end
-        else
-            return nil
-        end
-    elseif ast.tag == 'Index' then
-        ast_error(ast, 'find_symbol_or_type not support <Index> yet: TODO')
-        return nil
-    elseif ast.tag == 'FuncName' then
-        if setflag then
-            ast_error(ast, "setting symbol value is not supported for 'FuncName' node")
-        end
-        assert(ast[1].tag == 'Id')
-        local tt = find_symbol_or_type(scope_field, ast[1])
-        for i = 2, #ast do
-            assert(ast[i].tag == 'Id')
-            local field = ast[i][1]
-            -- if setflag and i == #ast then
-            --     tt.hash[field] = setval
-            --     return setval
-            -- end
-            tt = tt.hash[field]
-            if not tt then
-                -- if setflag then
-                --     ast_error(ast, 'symbol not found')
-                -- end
-                return nil
-            end
-        end
-        return tt
-    elseif ast.tag == 'Call' then
-        return get_node_type(ast)
-    else
-        ast_error(ast, 'find_symbol_or_type not support tag: %s', ast.tag)
-        return nil
-    end
-end
-
-local function find_type(ast, setflag, setval)
-    return find_symbol_or_type('types', ast, setflag, setval)
-end
-
-local function find_symbol(ast, setflag, setval)
-    return find_symbol_or_type('symbols', ast, setflag, setval)
-end
-
-----
-
-local function get_node_type_impl(ast)
-    if is_basetype(ast.tag) then
-        if ast.tag == 'Table' then
-            return { tag='TypeTableProxy', info=ast.info, ast }
-        end
-
-        return { tag='Id', ast.tag, ast }
-
-    elseif ast.tag == 'BinOpr' then
-        local op = ast[1]
-        if IS_RELA_OPR[op] then
-            return { tag='Id', 'Bool' }
-        elseif IS_LOGI_OPR[op] then
-            return get_node_type_impl(ast[3])
-        elseif IS_BITW_OPR[op] then
-            return { tag='Id', 'Integer' }
-        elseif IS_ARIT_OPR[op] then
-            if op == '^' or op == '/' then
-                return { tag='Id', 'Float' }
-            end
-
-            local t1 = get_node_type_impl(ast[2])
-            local t2 = get_node_type_impl(ast[3])
-            if not t1 or not t2 then
-                return nil
-            end
-
-            if t1.tag == 'Id' and t2.tag == 'Id' then
-                if t1[1] == 'Any' or t2[1] == 'Any' then
-                    return { tag='Id', 'Any' }
-                end
-
-                if t1[1] == 'Integer' and t2[1] == 'Integer' then
-                    return { tag='Id', 'Integer' }
-                elseif is_subtype_of(t1[1], 'Number') and is_subtype_of(t2[1], 'Number') then
-                    return { tag='Id', 'Float' }
-                end
-            end
-
-            ast_error(ast, sf('get_node_type of arith opr error. t1:%s t2:%s', dump_table(t1), dump_table(t2)))
-            return nil
-        else
-            ast_error(ast, sf('get_node_type error. bad BinOpr: %s', op))
-            return nil
-        end
-    elseif ast.tag == 'UnOpr' then
-        local op = ast[1]
-        if IS_LOGI_OPR[op] then
-            return { tag='Id', 'Bool' }
-        elseif IS_BITW_OPR[op] then
-            return { tag='Id', 'Integer' }
-        elseif IS_ARIT_OPR[op] then
-            return get_node_type_impl(ast[2])
-        elseif op == '#' then  -- Length Operator
-            return { tag='Id', 'Integer' }
-        else
-            ast_error(ast, sf('get_node_type error. bad UnOpr: %s', op))
-            return nil
-        end
-    elseif ast.tag == 'Call' then
-        local si = find_symbol(ast[1])
-        if si then
-            if si.tag ~= 'TypeFunction' then
-                ast_error(ast, sf('get_node_type. bad si tag: %s', si.tag))
-            else
-                return si[2] or errorf('symbol info error. funcname: %s', dump_table(ast[1]))
-            end
-        else
-            return { tag='Id', 'Any' }
-        end
-    elseif ast.tag == 'Id' then
-        local si = find_symbol(ast)
-        return si or { tag='Id', 'Any' }
-    elseif ast.tag == 'IndexShort' then
-        -- TODO
-        return { tag='Id', 'Any' }
-    elseif ast.tag == 'Index' then
-        -- TODO
-        return { tag='Id', 'Any' }
-    elseif ast.tag == 'Function' then
-        -- TODO
-        return { tag='Id', 'Any' }
-    elseif ast.tag == 'VarArg' then
-        return { tag='VarArg', info=ast.info }
-    else
-        ast_error(ast, 'get_node_type not support: ' .. tostring(ast.tag))
-        return nil
-    end
-end
-
-get_node_type = function(ast)
-    local msgh = function(s)
-        local s1, s2, s3 = s:match('^([^:]*):(%d+): (.*)$')
-        return debug.traceback(string.format('(%s:%d) %s', s1, s2, s3))
-    end
-    local ok, val = xpcall(get_node_type_impl, msgh, ast)
-    if not ok then
-        ast_error(ast, val)
-        return nil
-    end
-    return val
 end
 
 ----
@@ -290,9 +93,9 @@ function F:Local(ast, env, walk_node)
         local n_name = n_namelist[i]
         local n_exp = n_explist[i]
         if n_exp then
-            local given_type = get_node_type(n_exp)
+            local given_type = Types.get_node_type(n_exp)
             if given_type then
-                local expect_type = find_symbol(n_name) or { tag='Id', 'Any' }
+                local expect_type = Symbols.find_var(n_name) or { tag='Id', 'Any' }
                 local ok, err = match_type(expect_type, given_type)
                 if not ok then
                     ast_error(ast, err)
@@ -319,83 +122,6 @@ local function match_func_type(expect, given)
         return false
     end
     return true
-end
-
-local get_full_type_name
-
-local function dump_type_obj(ast)
-    local keys = ast.keys
-    local hash = ast.hash
-    local b = {}
-    b[#b+1] = '{'
-    for i = 1, #keys do
-        local k = keys[i]
-        local n_fieldtype = hash[k]
-        b[#b+1] = ' '
-        b[#b+1] = k
-        b[#b+1] = ':'
-        b[#b+1] = get_full_type_name(n_fieldtype)
-        if i < #ast then
-            b[#b+1] = ';'
-        end
-    end
-    b[#b+1] = ' }'
-    return table.concat(b, '')
-end
-
-local function dump_type_table(ast)
-    local b = {}
-    b[#b+1] = '{'
-    for i = 1, #ast, 2 do
-        local nk = ast[i]
-        local nv = ast[i+1]
-        b[#b+1] = ' '
-        if nk.tag == 'Id' then
-            b[#b+1] = nk[1]
-        elseif nk.tag == 'Integer' then
-            b[#b+1] = sf('[%d]', nk[1])
-        else
-            b[#b+1] = '[?]'
-        end
-        b[#b+1] = ':'
-        b[#b+1] = get_full_type_name(get_node_type(nv))
-        if i < #ast - 1 then
-            b[#b+1] = ';'
-        end
-    end
-    b[#b+1] = ' }'
-    return table.concat(b, '')
-end
-
-get_full_type_name = function(ast)
-    if ast.tag == 'Id' then
-        return get_type_name(ast[1])
-    elseif ast.tag == 'TypeFunction' then
-        local b = {}
-        for i = 1, #ast[1] do
-            b[#b+1] = get_full_type_name(ast[1][i])
-            if i ~= #ast[1] then
-                b[#b+1] = ', '
-            end
-        end
-        b[#b+1] = ' >> '
-        b[#b+1] = get_full_type_name(ast[2])
-        return table.concat(b, '')
-    elseif ast.tag == 'TypeAlias' then
-        return ast[1]
-    elseif ast.tag ==  'TypeObj' then
-        return dump_type_obj(ast)
-    elseif ast.tag == 'TypeTableProxy' then
-        return dump_type_table(ast[1])
-    elseif ast.tag == 'VarArg' then
-        return '...'
-    elseif ast.tag == 'OptArg' then
-        return get_full_type_name(ast[1]) .. '?'
-    -- elseif ast.tag == 'CloseTypeObj' then
-    --     error
-    else
-        error(sf('get_full_type_name error: %s', dump_table(ast)))
-    end
 end
 
 local function match_table(expect, given)
@@ -425,7 +151,7 @@ local function match_table(expect, given)
         local to_match = og[k]
         if to_match then
             og[k] = nil
-            local to_match_type = get_node_type(to_match)
+            local to_match_type = Types.get_node_type(to_match)
             local ok, _ = match_type(n_fieldtype, to_match_type)
             if not ok then
                 matched = false
@@ -475,11 +201,11 @@ match_type = function(expect, given)
             end
         end
     end
-    return false, sf('expect "%s", but given "%s"', get_full_type_name(expect), get_full_type_name(given))
+    return false, sf('expect "%s", but given "%s"', Types.get_full_type_name(expect), Types.get_full_type_name(given))
 end
 
 local function match_node_type(node, tp)
-    local node_type = get_node_type(node)
+    local node_type = Types.get_node_type(node)
     if node_type then
         return match_type(tp, node_type)
     else
@@ -489,7 +215,7 @@ local function match_node_type(node, tp)
     -- elseif tp.tag == 'VarArg' then
     --     return true
     -- elseif tp.tag == 'TypeFunction' then
-    --     local node_type = get_node_type(node)
+    --     local node_type = Types.get_node_type(node)
     --     print('tp:', dump_table(tp))
     --     print('node:', dump_table(node))
     --     print('node_type:', dump_table(node_type))
@@ -533,7 +259,7 @@ function F:Call(ast, env, walk_node)
     local n_funcname    = ast[1]
     local n_arglist     = ast[2]
 
-    local si = find_symbol(n_funcname)
+    local si = Symbols.find_var(n_funcname)
     -- print('CALL', dump_table(n_funcname), '---->', dump_table(si))
     if not si then
         -- return ast_error(ast, 'cannot find type info for: %s', funcname)
@@ -561,7 +287,6 @@ function F:Call(ast, env, walk_node)
             break
         end
         local ok, err = match_node_type(n_given, n_expet)
-        print(i_arg, 'match', dump_table(n_given), dump_table(n_expet), '==>', ok)
         if not ok then
             ast_error(ast, sf('arg #%d, %s', i_par, err))
             error_flag = true
@@ -577,7 +302,7 @@ function F:Call(ast, env, walk_node)
         local n_expet = n_parlist[i_par]
         if n_expet.tag ~= 'VarArg' and n_expet.tag ~= 'OptArg' then
             ast_error(ast, "missing arg #%d (%s) to function '%s'",
-                i_par, get_full_type_name(n_expet), dump_funcname(n_funcname))
+                i_par, Types.get_full_type_name(n_expet), dump_funcname(n_funcname))
         end
     end
 
@@ -609,71 +334,6 @@ function F:Set(ast, env, walk_node)
     walk_node(self, ast)
 end
 
-local function convert_type(ast)
-    if ast.tag == 'TypeFunction' then
-        return { tag='TypeFunction', info=ast.info, convert_type(ast[1]), convert_type(ast[2]) }
-    elseif ast.tag == 'Id' then
-        local typename = ast[1]
-
-        -- 基础类型
-        local id = TYPE_NAME2ID[typename]
-        if id then
-            return { tag='Id', info=ast.info, id }
-        end
-
-        -- 自定义类型
-        local ti = find_type(ast)
-        if not ti then
-            ast_error(ast, 'unknown type: %s', typename)
-        end
-
-        return { tag='TypeAlias', typename, ti }
-
-    elseif ast.tag == 'VarArg' then
-        return { tag='VarArg', info=ast.info }
-    elseif ast.tag == 'TypeArgList' then
-        local nn = { tag='TypeArgList', info=ast.info}
-        for i = 1, #ast do
-            nn[i] = convert_type(ast[i])
-        end
-        return nn
-    elseif ast.tag == 'TypeObj' then
-        local keys = ast.keys
-        local hash = ast.hash
-        local nn = { tag='TypeObj', info=ast.info, keys=keys, hash=hash, open=ast.open }
-        for _, k in ipairs(keys) do
-            hash[k] = convert_type(hash[k])
-        end
-        -- for i = 1, #ast, 2 do
-        --     nn[i] = ast[i]
-        --     nn[i+1] = convert_type(ast[i+1])
-        -- end
-        return nn
-    -- elseif ast.tag == 'CloseTypeObj' then
-    --     return { tag='CloseTypeObj', info=ast.info }
-    elseif ast.tag == 'OptArg' then
-        return { tag='OptArg', info=ast.info, convert_type(ast[1]) }
-    else
-        error('unknown type node tag: ' .. ast.tag)
-    end
-end
-
-function F:Tpdef(ast, env, walk_node)
-    walk_node(self, ast)
-
-    local n_id      = ast[1]
-    local n_type    = ast[2]
-    find_type(n_id, true, convert_type(n_type))
-end
-
-function F:Tpbind(ast, env, walk_node)
-    walk_node(self, ast)
-
-    local n_id      = ast[1]
-    local n_type    = ast[2]
-    find_symbol(n_id, true, convert_type(n_type))
-end
-
 local function dump_typesuffixedname_aux(b, ast)
     if ast.tag == 'Id' then
         b[#b+1] = ast[1]
@@ -693,7 +353,7 @@ local function dump_typesuffixedname(ast)
 end
 
 function F:OpenTypeObj(ast, env, walk_node)
-    local si = find_symbol(ast[1])
+    local si = Symbols.find_var(ast[1])
     if not si then
         ast_error(ast, "open a non-existing table '%s'", dump_typesuffixedname(ast[1]))
     elseif si.open then
@@ -706,49 +366,13 @@ function F:OpenTypeObj(ast, env, walk_node)
 end
 
 function F:CloseTypeObj(ast, env, walk_node)
-    local si = find_symbol(ast[1])
+    local si = Symbols.find_var(ast[1])
     if not si then
         ast_error(ast, "close a non-existing table '%s'", dump_typesuffixedname(ast[1]))
     elseif not si.open then
         ast_error(ast, "table '%s' already closed", dump_typesuffixedname(ast[1]))
     else
         si.open = false
-    end
-
-    walk_node(self, ast)
-end
-
-function F:LocalFunctionDef(ast, env, walk_node)
-    local n_funcname    = ast[1]
-    local n_parlist     = ast[2]
-
-    local si = find_symbol(n_funcname)
-    if si then
-        assert(si.tag == 'TypeFunction')
-        local par_types = si[1]
-
-        -- match parlist
-        local i = 1
-        local error_flag = false
-        for _ = 1, #n_parlist do
-            local n_type = par_types[i]
-            if not n_type then
-                ast_error(ast, 'redundant arg #%d', i)
-                error_flag = true
-                break
-            end
-            find_symbol(n_parlist[i], true, n_type)
-            if n_type.tag ~= 'VarArg' then
-                i = i + 1
-            end
-        end
-
-        if not error_flag and i <= #par_types then
-            local n_type = par_types[i]
-            if n_type.tag ~= 'VarArg' then
-                ast_error(ast, 'missing arg #%d (%s)', i, get_full_type_name(n_type))
-            end
-        end
     end
 
     walk_node(self, ast)

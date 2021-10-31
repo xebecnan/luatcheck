@@ -456,7 +456,6 @@ typeexp = function(e)
 
     -- 不是 TypeFunction
     if e.tt ~= ',' and e.tt ~= '>>' then
-        print('e.tt:', e.tt)
         return n
     end
 
