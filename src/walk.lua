@@ -231,6 +231,10 @@ function F:OptArg(ast)
     walk(self, ast[1])
 end
 
+function F:DumpVar(ast)
+    walk(self, ast[1])
+end
+
 return function(walk_func, udata)
     return setmetatable({
         walk_func = walk_func,

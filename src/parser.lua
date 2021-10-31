@@ -491,16 +491,24 @@ end
 local function typestatement(e)
     local info = newinfo(e)
 
-    if e.tt == 'ID' and e.tv == 'open' then
-        e:next_token()
-        local n_id = typesuffixedname(e)
-        return  { tag='OpenTypeObj', info=info, n_id }
-    end
+    if e.tt == 'ID' then
+        if e.tv == 'open' then
+            e:next_token()
+            local n_id = typesuffixedname(e)
+            return  { tag='OpenTypeObj', info=info, n_id }
+        end
 
-    if e.tt == 'ID' and e.tv == 'close' then
-        e:next_token()
-        local n_id = typesuffixedname(e)
-        return  { tag='CloseTypeObj', info=info, n_id }
+        if e.tv == 'close' then
+            e:next_token()
+            local n_id = typesuffixedname(e)
+            return  { tag='CloseTypeObj', info=info, n_id }
+        end
+
+        if e.tv == 'dump_var' then
+            e:next_token()
+            local n_id = typesuffixedname(e)
+            return  { tag='DumpVar', info=info, n_id }
+        end
     end
 
     -- local n_id = check_identifier(e)

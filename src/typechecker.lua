@@ -4,6 +4,7 @@ local Types = require('types')
 local Util = require 'util'
 local Walk = require('walk')
 local Symbols = require('symbols')
+local SerializeAst = require 'serialize_ast'
 
 local get_type_name = Types.get_type_name
 local is_subtype_of = Types.is_subtype_of
@@ -376,6 +377,12 @@ function F:CloseTypeObj(ast, env, walk_node)
     end
 
     walk_node(self, ast)
+end
+
+function F:DumpVar(ast, env, walk_node)
+    local si = Symbols.find_var(ast[1])
+    print('DumpVar', dump_typesuffixedname(ast[1]))
+    print(si and SerializeAst(si))
 end
 
 --------------------------------------------------
