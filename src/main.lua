@@ -1,5 +1,5 @@
 local Parser = require('parser')
-local Binder = require('binder')
+local Scoper = require('scoper')
 local Typechecker = require('typechecker')
 local SerializeAst = require 'serialize_ast'
 
@@ -15,7 +15,7 @@ local BUILTIN = [[
 
 local function init_global_symbols()
     local ast = Parser(BUILTIN, 'BUILTIN')
-    Binder(ast)
+    Scoper(ast)
     Typechecker(ast)
     return ast.symbols
 end
@@ -42,9 +42,9 @@ local function check_file(filepath, stdin_filename)
 
     local ast = Parser(c, filename, true)
     if ast then
-        -- print('-------------------------- Binder')
+        -- print('-------------------------- Scoper')
         -- print(SerializeAst(ast))
-        Binder(ast)
+        Scoper(ast)
 
         local root = { tag='Block', info=ast.info, symbols=init_global_symbols(), types={}, ast }
         ast.parent = root

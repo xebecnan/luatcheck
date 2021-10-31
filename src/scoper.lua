@@ -1,4 +1,4 @@
--- luacheck: ignore 212
+-- Scoper 主要是处理 scope 设置
 
 local Walk = require('walk')
 
