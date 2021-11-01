@@ -210,10 +210,6 @@ match_type = function(expect, given)
         return true
     end
 
-    if given.tag == 'FuncParameter' then
-        return match_type(expect, given[1])
-    end
-
     if expect.tag == 'Require' and given.tag == 'Require' then
         if match_type(expect[1], given[1]) then
             return true
@@ -255,10 +251,6 @@ match_type = function(expect, given)
             if match_type(expect[2], given) then
                 return true
             end
-        end
-    elseif expect.tag == 'FuncParameter' then
-        if match_type(expect[1], given) then
-            return true
         end
     end
     return false, sf('expect "%s", but given "%s"', Types.get_full_type_name(expect, false), Types.get_full_type_name(given, false))
@@ -352,8 +344,8 @@ function F:Call(ast, env, walk_node)
         end
         local ok, err = match_node_type(n_given, n_expet)
         if not ok then
-            if n_expet == 'FuncParameter' then
-                ast_error(ast, sf('arg #%d "%s", %s', i_par, n_expet[2][1], err))
+            if n_expet.parname then
+                ast_error(ast, sf('arg #%d "%s", %s', i_par, n_expet.parname, err))
             else
                 ast_error(ast, sf('arg #%d, %s', i_par, err))
             end

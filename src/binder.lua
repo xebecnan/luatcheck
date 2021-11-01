@@ -92,8 +92,7 @@ local function inference_type_for_function(ast)
         if n_par.tag == 'VarArg' then
             n_partypes[#n_partypes+1] = { tag='VarArg', info=n_par.info }
         elseif n_par.tag == 'Id' then
-            local any = { tag='Id', 'Any' }
-            n_partypes[#n_partypes+1] = { tag='FuncParameter', info=n_par.info, any, n_par }
+            n_partypes[#n_partypes+1] = { tag='Id', parname=n_par[1], 'Any' }
         else
             errorf('bad parameter tag: %s', n_par.tag)
         end
@@ -126,13 +125,15 @@ local function function_def_common(ast, env, walk_node)
             if n_par.tag ~= 'VarArg' then
                 Symbols.set_var(n_par, n_type)
             end
-            if n_par.tag == 'Id' and n_type.tag ~= 'FuncParameter' then
-                n_type = { tag='FuncParameter', info=n_type.info, n_type, n_par }
-                par_types[i] = n_type
+            if n_par.tag == 'Id' and not n_type.parname then
+                if n_type.tag == 'VarArg' then
+                    local any = { tag='Id', info=n_type.info, parname=n_par[1], 'Any' }
+                    table.insert(par_types, i, { tag='OptArg', info=n_type.info, any })
+                else
+                    n_type.parname = n_par[1]
+                end
             end
-            if n_type.tag ~= 'VarArg' then
-                i = i + 1
-            end
+            i = i + 1
         end
 
         if not error_flag and i <= #par_types then

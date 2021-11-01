@@ -281,6 +281,10 @@ local function dump_type_table(ast)
 end
 
 function M.get_full_type_name(ast, with_par_name)
+    if with_par_name and ast.parname then
+        return sf("%s (%s)", ast.parname, M.get_full_type_name(ast, false))
+    end
+
     if ast.tag == 'Id' then
         return M.get_type_name(ast[1])
     elseif ast.tag == 'TypeFunction' then
@@ -306,12 +310,6 @@ function M.get_full_type_name(ast, with_par_name)
         return M.get_full_type_name(ast[1], with_par_name) .. '?'
     elseif ast.tag == 'Require' then
         return '(require) ' .. M.get_full_type_name(ast[1], with_par_name)
-    elseif ast.tag == 'FuncParameter' then
-        if with_par_name then
-            return sf("%s (%s)", ast[2][1], M.get_full_type_name(ast[1], false))
-        else
-            return sf("%s", M.get_full_type_name(ast[1], false))
-        end
     -- elseif ast.tag == 'CloseTypeObj' then
     --     error
     else
