@@ -80,17 +80,24 @@ local function find_symbol(namespace, ast, narrow_func)
         ast_error(ast, 'find_symbol not support <Index> yet: TODO')
         return { tag='Id', 'Any' }
     elseif ast.tag == 'FuncName' then
-        assert(ast[1].tag == 'Id')
-        local tt = find_symbol(namespace, ast[1], narrow_to_type_obj)
-        for i = 2, #ast do
-            assert(ast[i].tag == 'Id')
-            local field = ast[i][1]
-            tt = tt.hash[field]
-            if not tt then
-                return { tag='Id', 'Any' }
+        if #ast >= 2 then
+            assert(ast[1].tag == 'Id')
+            local tt = find_symbol(namespace, ast[1], narrow_to_type_obj)
+            for i = 2, #ast do
+                assert(ast[i].tag == 'Id')
+                local field = ast[i][1]
+                tt = tt.hash[field]
+                if not tt then
+                    return { tag='Id', 'Any' }
+                end
             end
+            return tt
+        elseif #ast >= 1 then
+            assert(ast[1].tag == 'Id')
+            return find_symbol(namespace, ast[1], nil)
+        else
+            errorf('bad funcname data. ast: %s', dump_table(ast))
         end
-        return tt
     elseif ast.tag == 'Call' then
         local si = M.find_var(ast[1])
         if si.tag == 'Id' and si[1] == 'Any' then
@@ -163,8 +170,9 @@ set_symbol = function(namespace, ast, setval)
             obj.hash[field] = setval
         elseif #ast >= 1 then
             return set_symbol(namespace, ast[1], setval)
+        else
+            errorf('bad funcname data. ast: %s', dump_table(ast))
         end
-
     elseif ast.tag == 'Block' then
         assert(ast.scope == ast)
         local t = ast.symbols[namespace]
