@@ -64,11 +64,14 @@ local function find_symbol(namespace, ast)
         return tt
     elseif ast.tag == 'Call' then
         local si = M.find_var(ast[1])
-        if si.tag ~= 'TypeFunction' then
-            ast_error(ast, sf('get_node_type. bad si tag: %s', si.tag))
+        if si.tag == 'Id' and si[1] == 'Any' then
+            return { tag='Id', 'Any' }
+        elseif si.tag == 'TypeFunction' then
+            return si[2] or errorf('symbol info error. funcname: %s', dump_table(ast[1]))
+        else
+            ast_error(ast, 'get_node_type. bad si tag: %s', si.tag)
             return { tag='Id', 'Any' }
         end
-        return si[2] or errorf('symbol info error. funcname: %s', dump_table(ast[1]))
     elseif ast.tag == 'Block' then
         return find_id_symbol_aux(namespace, ast, '__return__')
 
