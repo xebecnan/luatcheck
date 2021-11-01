@@ -7,6 +7,9 @@ local TYPE_NAME2ID = Types.TYPE_NAME2ID
 local sf = string.format
 local ast_error = Util.ast_error
 local dump_table = Util.dump_table
+local errorf = function(...)
+    error(sf(...))
+end
 
 local function convert_type(ast)
     if ast.tag == 'TypeFunction' then
@@ -83,17 +86,20 @@ end
 local function inference_type_for_function(ast)
     local n_funcname    = ast[1]
     local n_parlist     = ast[2]
-    local n_args = { tag='TypeArgList', info=n_parlist.info }
+    local n_partypes = { tag='TypeArgList', info=n_parlist.info }
     for i = 1, #n_parlist do
         local n_par = n_parlist[i]
         if n_par.tag == 'VarArg' then
-            n_args[#n_args+1] = { tag='VarArg', info=n_par.info }
+            n_partypes[#n_partypes+1] = { tag='VarArg', info=n_par.info }
+        elseif n_par.tag == 'Id' then
+            local any = { tag='Id', 'Any' }
+            n_partypes[#n_partypes+1] = { tag='FuncParameter', info=n_par.info, any, n_par }
         else
-            n_args[#n_args+1] = { tag='Id', 'Any' }
+            errorf('bad parameter tag: %s', n_par.tag)
         end
     end
     local n_ret = { tag='Id', 'Any' }
-    return { tag='TypeFunction', info=ast.info, n_args, n_ret }
+    return { tag='TypeFunction', info=ast.info, n_partypes, n_ret }
 end
 
 local function function_def_common(ast, env, walk_node)
@@ -120,6 +126,10 @@ local function function_def_common(ast, env, walk_node)
             if n_par.tag ~= 'VarArg' then
                 Symbols.set_var(n_par, n_type)
             end
+            if n_par.tag == 'Id' and n_type.tag ~= 'FuncParameter' then
+                n_type = { tag='FuncParameter', info=n_type.info, n_type, n_par }
+                par_types[i] = n_type
+            end
             if n_type.tag ~= 'VarArg' then
                 i = i + 1
             end
@@ -128,7 +138,7 @@ local function function_def_common(ast, env, walk_node)
         if not error_flag and i <= #par_types then
             local n_type = par_types[i]
             if n_type.tag ~= 'VarArg' then
-                ast_error(ast, 'missing arg #%d (%s)', i, Types.get_full_type_name(n_type))
+                ast_error(ast, 'missing arg #%d (%s)', i, Types.get_full_type_name(n_type, true))
             end
         end
     end

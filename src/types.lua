@@ -247,7 +247,7 @@ local function dump_type_obj(ast)
         b[#b+1] = ' '
         b[#b+1] = k
         b[#b+1] = ':'
-        b[#b+1] = M.get_full_type_name(n_fieldtype)
+        b[#b+1] = M.get_full_type_name(n_fieldtype, false)
         if i < #ast then
             b[#b+1] = ';'
         end
@@ -271,7 +271,7 @@ local function dump_type_table(ast)
             b[#b+1] = '[?]'
         end
         b[#b+1] = ':'
-        b[#b+1] = M.get_full_type_name(M.get_node_type(nv))
+        b[#b+1] = M.get_full_type_name(M.get_node_type(nv), false)
         if i < #ast - 1 then
             b[#b+1] = ';'
         end
@@ -280,19 +280,19 @@ local function dump_type_table(ast)
     return table.concat(b, '')
 end
 
-function M.get_full_type_name(ast)
+function M.get_full_type_name(ast, with_par_name)
     if ast.tag == 'Id' then
         return M.get_type_name(ast[1])
     elseif ast.tag == 'TypeFunction' then
         local b = {}
         for i = 1, #ast[1] do
-            b[#b+1] = M.get_full_type_name(ast[1][i])
+            b[#b+1] = M.get_full_type_name(ast[1][i], false)
             if i ~= #ast[1] then
                 b[#b+1] = ', '
             end
         end
         b[#b+1] = ' >> '
-        b[#b+1] = M.get_full_type_name(ast[2])
+        b[#b+1] = M.get_full_type_name(ast[2], false)
         return table.concat(b, '')
     elseif ast.tag == 'TypeAlias' then
         return ast[1]
@@ -303,9 +303,15 @@ function M.get_full_type_name(ast)
     elseif ast.tag == 'VarArg' then
         return '...'
     elseif ast.tag == 'OptArg' then
-        return M.get_full_type_name(ast[1]) .. '?'
+        return M.get_full_type_name(ast[1], with_par_name) .. '?'
     elseif ast.tag == 'Require' then
-        return '(require) ' .. M.get_full_type_name(ast[1])
+        return '(require) ' .. M.get_full_type_name(ast[1], with_par_name)
+    elseif ast.tag == 'FuncParameter' then
+        if with_par_name then
+            return sf("%s (%s)", ast[2][1], M.get_full_type_name(ast[1], false))
+        else
+            return sf("%s", M.get_full_type_name(ast[1], false))
+        end
     -- elseif ast.tag == 'CloseTypeObj' then
     --     error
     else

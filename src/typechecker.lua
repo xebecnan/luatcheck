@@ -210,6 +210,10 @@ match_type = function(expect, given)
         return true
     end
 
+    if given.tag == 'FuncParameter' then
+        return match_type(expect, given[1])
+    end
+
     if expect.tag == 'Require' and given.tag == 'Require' then
         if match_type(expect[1], given[1]) then
             return true
@@ -252,8 +256,12 @@ match_type = function(expect, given)
                 return true
             end
         end
+    elseif expect.tag == 'FuncParameter' then
+        if match_type(expect[1], given) then
+            return true
+        end
     end
-    return false, sf('expect "%s", but given "%s"', Types.get_full_type_name(expect), Types.get_full_type_name(given))
+    return false, sf('expect "%s", but given "%s"', Types.get_full_type_name(expect, false), Types.get_full_type_name(given, false))
 end
 
 local function match_node_type(node, tp)
@@ -317,13 +325,13 @@ function F:Call(ast, env, walk_node)
         return
     end
 
-    local n_parlist
+    local n_partypes
     if si.tag == 'TypeFunction' then
-        n_parlist = si[1]
+        n_partypes = si[1]
     elseif si.tag == 'OptArg' and si[1].tag == 'TypeFunction' then
-        n_parlist = si[1][1]
+        n_partypes = si[1][1]
     elseif si.tag == 'Require' then
-        n_parlist = si[1][1]
+        n_partypes = si[1][1]
     elseif si.tag == 'Id' and si[1] == 'Any' then
         -- 调用的函数为 any 类型，跳过检查
         walk_node(self, ast)
@@ -336,7 +344,7 @@ function F:Call(ast, env, walk_node)
     local error_flag = false
     for i_arg = 1, #n_arglist do
         local n_given = n_arglist[i_arg]
-        local n_expet = n_parlist[i_par]
+        local n_expet = n_partypes[i_par]
         if not n_expet then
             ast_error(ast, "too many arguments to function '%s'", dump_funcname(n_funcname))
             error_flag = true
@@ -344,7 +352,11 @@ function F:Call(ast, env, walk_node)
         end
         local ok, err = match_node_type(n_given, n_expet)
         if not ok then
-            ast_error(ast, sf('arg #%d, %s', i_par, err))
+            if n_expet == 'FuncParameter' then
+                ast_error(ast, sf('arg #%d "%s", %s', i_par, n_expet[2][1], err))
+            else
+                ast_error(ast, sf('arg #%d, %s', i_par, err))
+            end
             error_flag = true
             break
         end
@@ -354,11 +366,11 @@ function F:Call(ast, env, walk_node)
         end
     end
 
-    if not error_flag and i_par <= #n_parlist then
-        local n_expet = n_parlist[i_par]
+    if not error_flag and i_par <= #n_partypes then
+        local n_expet = n_partypes[i_par]
         if n_expet.tag ~= 'VarArg' and n_expet.tag ~= 'OptArg' then
-            ast_error(ast, "missing arg #%d (%s) to function '%s'",
-                i_par, Types.get_full_type_name(n_expet), dump_funcname(n_funcname))
+            ast_error(ast, 'missing arg #%d "%s" to function "%s"',
+                i_par, Types.get_full_type_name(n_expet, true), dump_funcname(n_funcname))
         end
     end
 
