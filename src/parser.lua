@@ -259,6 +259,27 @@ expr = function(e)
     return subexpr(e, 0)
 end
 
+-- funcname -> NAME {fieldsel} [':' NAME] */
+local function funcname(e)
+    local node = { tag='FuncName', info=newinfo(e), invoke=false }
+    node[#node+1] = check_identifier(e)
+    while e:try_skip('.') do
+        node[#node+1] = check_identifier(e)
+    end
+    if e:try_skip(':') then
+        node[#node+1] = check_identifier(e)
+        node.invoke = true
+    end
+    return node
+end
+
+-- funcstat -> FUNCTION funcname body
+local function funcstat(e)
+    local n_funcname = funcname(e)
+    local n_parlist, n_block = body(e)
+    return { tag='FunctionDef', info=newinfo(e), n_funcname, n_parlist, n_block }
+end
+
 local function localfunc(e)
     local info = newinfo(e)
     local n_id = check_identifier(e)
@@ -281,27 +302,6 @@ local function localstat(e)
     end
 
     return { tag='Local', info=info, n_namelist, expr_list }
-end
-
--- funcname -> NAME {fieldsel} [':' NAME] */
-local function funcname(e)
-    local node = { tag='FuncName', info=newinfo(e), invoke=false }
-    node[#node+1] = check_identifier(e)
-    while e:try_skip('.') do
-        node[#node+1] = check_identifier(e)
-    end
-    if e:try_skip(':') then
-        node[#node+1] = check_identifier(e)
-        node.invoke = true
-    end
-    return node
-end
-
--- funcstat -> FUNCTION funcname body
-local function funcstat(e)
-    local n_funcname = funcname(e)
-    local n_parlist, n_block = body(e)
-    return { tag='FunctionDef', info=newinfo(e), n_funcname, n_parlist, n_block }
 end
 
 -- stat -> func | assignment

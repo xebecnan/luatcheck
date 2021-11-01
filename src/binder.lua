@@ -150,6 +150,11 @@ function F:LocalFunctionDef(ast, env, walk_node)
     walk_node(self, ast)
 end
 
+function F:FunctionDef(ast, env, walk_node)
+    function_def_common(ast, env, walk_node)
+    walk_node(self, ast)
+end
+
 function F:Local(ast, env, walk_node)
     local n_namelist = ast[1]
     local n_explist = ast[2]
@@ -170,11 +175,6 @@ function F:Local(ast, env, walk_node)
         end
     end
 
-    walk_node(self, ast)
-end
-
-function F:FunctionDef(ast, env, walk_node)
-    function_def_common(ast, env, walk_node)
     walk_node(self, ast)
 end
 
