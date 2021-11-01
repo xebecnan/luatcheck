@@ -15,8 +15,10 @@ local function find_id_symbol_aux(namespace, scope, name)
         local si = t[name]
         if si then
             if si.tag == 'TypeOfExpr' then
+                -- expand
                 local Types = require('types')
-                return Types.get_node_type(si[1])
+                si = Types.get_node_type(si[1])
+                t[name] = si
             end
             return si
         end

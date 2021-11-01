@@ -79,13 +79,30 @@ function F:Tpbind(ast, env, walk_node)
     Symbols.set_var(n_id, convert_type(n_type))
 end
 
-function F:LocalFunctionDef(ast, env, walk_node)
+-- 简单的类型推断: 只考虑参数数量，参数和返回值都按 any 类型处理
+local function inference_type_for_function(ast)
+    local n_funcname    = ast[1]
+    local n_parlist     = ast[2]
+    local n_args = { tag='TypeArgList', info=n_parlist.info }
+    for i = 1, #n_parlist do
+        local n_par = n_parlist[i]
+        if n_par.tag == 'VarArg' then
+            n_args[#n_args+1] = { tag='VarArg', info=n_par.info }
+        else
+            n_args[#n_args+1] = { tag='Id', 'Any' }
+        end
+    end
+    local n_ret = { tag='Id', 'Any' }
+    return { tag='TypeFunction', info=ast.info, n_args, n_ret }
+end
+
+local function function_def_common(ast, env, walk_node)
     local n_funcname    = ast[1]
     local n_parlist     = ast[2]
 
     local si = Symbols.find_var(n_funcname)
     if si.tag == 'Id' and si[1] == 'Any' then
-        Symbols.set_var(n_funcname, { tag='Id', 'Any' })
+        Symbols.set_var(n_funcname, inference_type_for_function(ast))
     else
         local par_types = si[1]
 
@@ -115,7 +132,10 @@ function F:LocalFunctionDef(ast, env, walk_node)
             end
         end
     end
+end
 
+function F:LocalFunctionDef(ast, env, walk_node)
+    function_def_common(ast, env, walk_node)
     walk_node(self, ast)
 end
 
@@ -143,12 +163,7 @@ function F:Local(ast, env, walk_node)
 end
 
 function F:FunctionDef(ast, env, walk_node)
-    local n_funcname    = ast[1]
-    local n_parlist     = ast[2]
-    local n_block       = ast[3]
-
-    Symbols.find_var(n_funcname)
-
+    function_def_common(ast, env, walk_node)
     walk_node(self, ast)
 end
 
