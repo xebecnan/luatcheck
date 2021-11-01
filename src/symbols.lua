@@ -9,10 +9,12 @@ end
 
 local M  = {}
 
-local function find_id_symbol_aux(namespace, scope, name)
+local function find_id_symbol_aux(namespace, scope, name, narrow_func)
+    local si
+    local raw_scope = scope
     while scope do
         local t = scope.symbols[namespace] or errorf('bad namespace: %s', namespace)
-        local si = t[name]
+        si = t[name]
         if si then
             if si.tag == 'TypeOfExpr' then
                 -- expand
@@ -20,16 +22,31 @@ local function find_id_symbol_aux(namespace, scope, name)
                 si = Types.get_node_type(si[1])
                 t[name] = si
             end
+            if si.tag == 'Id' and si[1] == 'Any' and narrow_func then
+                si = narrow_func(si)
+                t[name] = si
+            end
             return si
         end
         scope = scope.parent
     end
-    return { tag='Id', 'Any' }
+    si = { tag='Id', 'Any' }
+    if narrow_func then
+        si = narrow_func(si)
+    end
+    raw_scope.symbols[namespace][name] = si
+    return si
+end
+
+local function narrow_to_type_obj(si)
+    local keys = {}
+    local hash = {}
+    return { tag='TypeObj', info=si.info, keys=keys, hash=hash, open=true }
 end
 
 local set_symbol
 
-local function find_symbol(namespace, ast)
+local function find_symbol(namespace, ast, narrow_func)
     local t = ast.scope.symbols[namespace] or errorf('bad namespace: %s', namespace)
     local ns = t['__next_symbol__']
     if ns then
@@ -39,10 +56,10 @@ local function find_symbol(namespace, ast)
     end
 
     if ast.tag == 'Id' then
-        return find_id_symbol_aux(namespace, ast.scope, ast[1])
+        return find_id_symbol_aux(namespace, ast.scope, ast[1], narrow_func)
     elseif ast.tag == 'IndexShort' or ast.tag == 'Invoke' then
         assert(ast[2].tag == 'Id')
-        local si1 = find_symbol(namespace, ast[1])
+        local si1 = find_symbol(namespace, ast[1], nil)
         if si1 then
             if si1.tag == 'Id' and si1[1] == 'Any' then
                 return { tag='Id', 'Any' }
@@ -64,7 +81,7 @@ local function find_symbol(namespace, ast)
         return { tag='Id', 'Any' }
     elseif ast.tag == 'FuncName' then
         assert(ast[1].tag == 'Id')
-        local tt = find_symbol(namespace, ast[1])
+        local tt = find_symbol(namespace, ast[1], narrow_to_type_obj)
         for i = 2, #ast do
             assert(ast[i].tag == 'Id')
             local field = ast[i][1]
@@ -85,7 +102,7 @@ local function find_symbol(namespace, ast)
             return { tag='Id', 'Any' }
         end
     elseif ast.tag == 'Block' then
-        return find_id_symbol_aux(namespace, ast, '__return__')
+        return find_id_symbol_aux(namespace, ast, '__return__', nil)
 
     else
         ast_error(ast, 'find_symbol not support tag: %s', ast.tag)
@@ -97,14 +114,15 @@ set_symbol = function(namespace, ast, setval)
     if ast.tag == 'Id' then
         local t = ast.scope.symbols[namespace] or errorf('bad namespace: %s', namespace)
         local name = ast[1]
-        if t[name] then
+        local old_si = t[name]
+        if old_si and not (old_si.tag == 'Id' and old_si[1] == 'Any') then
             ast_error(ast, "symbol '%s' is overwritten", name)
         end
         t[name] = setval
         return
     elseif ast.tag == 'IndexShort' or ast.tag == 'Invoke' then
         assert(ast[2].tag == 'Id')
-        local si1 = find_symbol(namespace, ast[1])
+        local si1 = find_symbol(namespace, ast[1], nil)
         if si1 then
             if si1.tag == 'Id' and si1[1] == 'Any' then
                 return
@@ -114,7 +132,8 @@ set_symbol = function(namespace, ast, setval)
                 return
             end
             local name = ast[2][1]
-            if si1.hash[name] then
+            local old_si = si1.hash[name]
+            if old_si and not (old_si.tag == 'Id' and old_si[1] == 'Any') then
                 ast_error(ast, "symbol '%s' is overwritten", name)
             end
             si1.hash[name] = setval
@@ -128,8 +147,8 @@ set_symbol = function(namespace, ast, setval)
     elseif ast.tag == 'FuncName' then
         if #ast >= 2 then
             assert(ast[1].tag == 'Id')
-            local tt = find_symbol(namespace, ast[1])
-            local obj = nil
+            local tt = find_symbol(namespace, ast[1], nil)
+            local obj
             local field = nil
             local next_obj = tt
             for i = 2, #ast do
@@ -160,11 +179,11 @@ set_symbol = function(namespace, ast, setval)
 end
 
 function M.find_type(ast)
-    return find_symbol('types', ast)
+    return find_symbol('types', ast, nil)
 end
 
 function M.find_var(ast)
-    return find_symbol('vars', ast)
+    return find_symbol('vars', ast, nil)
 end
 
 function M.set_type(ast, val)
