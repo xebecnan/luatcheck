@@ -193,9 +193,14 @@ get_node_type_impl = function(ast)
             return si[2]
         elseif si.tag == 'Require' then
             assert(ast[2].tag == 'ExpList')
-            assert(ast[2][1].tag == 'Str')
-            local require_path = ast[2][1][1]
-            return handle_require(require_path)
+            -- 只能处理直接用字符串字面量作为参数的
+            -- (可以进一步研究下能不能处理一些简介传递的方式)
+            if ast[2][1].tag == 'Str' then
+                local require_path = ast[2][1][1]
+                return handle_require(require_path)
+            else
+                return { tag='Id', 'Any' }
+            end
         elseif si.tag == 'Id' and si[1] == 'Any' then
             return { tag='Id', 'Any' }
         else
