@@ -138,6 +138,18 @@ function F:Local(ast, env, walk_node)
             end
         end
     end
+
+    walk_node(self, ast)
+end
+
+function F:FunctionDef(ast, env, walk_node)
+    local n_funcname    = ast[1]
+    local n_parlist     = ast[2]
+    local n_block       = ast[3]
+
+    Symbols.find_var(n_funcname)
+
+    walk_node(self, ast)
 end
 
 function F:Return(ast, env, walk_node)
@@ -152,6 +164,8 @@ function F:Return(ast, env, walk_node)
         end
         Symbols.set_var(ast.scope, mod_type)
     end
+
+    walk_node(self, ast)
 end
 
 --------------------------------

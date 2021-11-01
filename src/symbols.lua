@@ -25,7 +25,17 @@ local function find_id_symbol_aux(namespace, scope, name)
     return { tag='Id', 'Any' }
 end
 
+local set_symbol
+
 local function find_symbol(namespace, ast)
+    local t = ast.scope.symbols[namespace] or errorf('bad namespace: %s', namespace)
+    local ns = t['__next_symbol__']
+    if ns then
+        t['__next_symbol__'] = nil
+        set_symbol(namespace, ast, ns)
+        return ns
+    end
+
     if ast.tag == 'Id' then
         return find_id_symbol_aux(namespace, ast.scope, ast[1])
     elseif ast.tag == 'IndexShort' or ast.tag == 'Invoke' then
@@ -81,10 +91,10 @@ local function find_symbol(namespace, ast)
     end
 end
 
-local function set_symbol(namespace, ast, setval)
+set_symbol = function(namespace, ast, setval)
     if ast.tag == 'Id' then
-        local name = ast[1]
         local t = ast.scope.symbols[namespace] or errorf('bad namespace: %s', namespace)
+        local name = ast[1]
         if t[name] then
             ast_error(ast, "symbol '%s' is overwritten", name)
         end
@@ -111,16 +121,38 @@ local function set_symbol(namespace, ast, setval)
             return
         end
     elseif ast.tag == 'Index' then
-        ast_error(ast, 'find_symbol not support <Index> yet: TODO')
+        ast_error(ast, 'set_symbol not support <Index> yet: TODO')
         return
     elseif ast.tag == 'FuncName' then
-        ast_error(ast, "setting symbol value is not supported for 'FuncName' node")
+        if #ast >= 2 then
+            assert(ast[1].tag == 'Id')
+            local tt = find_symbol(namespace, ast[1])
+            local obj = nil
+            local field = nil
+            local next_obj = tt
+            for i = 2, #ast do
+                assert(ast[i].tag == 'Id')
+                obj = next_obj
+                field = ast[i][1]
+                if not obj then
+                    return
+                end
+                next_obj = obj.hash[field]
+            end
+            obj.hash[field] = setval
+        elseif #ast >= 1 then
+            return set_symbol(namespace, ast[1], setval)
+        end
+
     elseif ast.tag == 'Block' then
         assert(ast.scope == ast)
         local t = ast.symbols[namespace]
         t['__return__'] = setval
+    elseif ast.tag == 'RefToNextSymbol' then
+        local t = ast.scope.symbols[namespace] or errorf('bad namespace: %s', namespace)
+        t['__next_symbol__'] = setval
     else
-        ast_error(ast, 'find_symbol not support tag: %s', ast.tag)
+        ast_error(ast, 'set_symbol not support tag: %s', ast.tag)
         return
     end
 end

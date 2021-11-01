@@ -7,7 +7,7 @@ local F = {}
 local function walk(walker, ast)
     local f = F[ast.tag] or error(sf('unknown tag: %s', ast.tag))
 
-    walker.walk_func(walker, ast, walker.udata, f)
+    return walker.walk_func(walker, ast, walker.udata, f)
 end
 
 function F:BinOpr(ast)
@@ -235,6 +235,10 @@ end
 
 function F:Require(ast)
     walk(self, ast[1])
+end
+
+function F:RefToNextSymbol(ast)
+    -- pass
 end
 
 return function(walk_func, udata)

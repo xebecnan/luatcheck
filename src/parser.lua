@@ -478,6 +478,11 @@ typeexp = function(e)
 end
 
 local function typesuffixedname(e)
+    if e.tt == '$' then
+        e:next_token()
+        return { tag='RefToNextSymbol', info=newinfo(e) }
+    end
+
     local n1 = check_identifier(e)
 
     while true do
