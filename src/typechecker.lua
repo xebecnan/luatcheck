@@ -335,9 +335,15 @@ function F:Call(ast, env, walk_node)
 
     local i_par = 1
     local error_flag = false
+    local calling_with_var_arg = false
     for i_arg = 1, #n_arglist do
         local n_given = n_arglist[i_arg]
         local n_expet = n_partypes[i_par]
+        if n_given.tag == 'VarArg' then
+            calling_with_var_arg = true
+            break
+        end
+
         if not n_expet then
             ast_error(ast, "too many arguments to function '%s'", dump_funcname(n_funcname))
             error_flag = true
@@ -359,7 +365,7 @@ function F:Call(ast, env, walk_node)
         end
     end
 
-    if not error_flag and i_par <= #n_partypes then
+    if not error_flag and not calling_with_var_arg and i_par <= #n_partypes then
         local n_expet = n_partypes[i_par]
         if n_expet.tag ~= 'VarArg' and n_expet.tag ~= 'OptArg' then
             ast_error(ast, 'missing arg #%d "%s" to function "%s"',
