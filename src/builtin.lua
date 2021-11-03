@@ -3,8 +3,11 @@ local Scoper = require('scoper')
 local Binder = require('binder')
 
 local BUILTIN = [[
+-->> next :: any, any? >> any
 -->> print :: ... >> void
+-->> rawset :: any, any, any >> void
 -->> require :: handle_require (string >> any)
+-->> type :: any >> string
 ]]
 
 local function init_global_symbols()
