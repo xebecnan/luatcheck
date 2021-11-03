@@ -330,11 +330,21 @@ function F:Call(ast, env, walk_node)
     local i_par = 1
     local error_flag = false
     local calling_with_var_arg = false
-    for i_arg = 1, #n_arglist do
+    local arg_count =#n_arglist
+    for i_arg = 1, arg_count do
         local n_given = n_arglist[i_arg]
         local n_expet = n_partypes[i_par]
         if n_given.tag == 'VarArg' then
             calling_with_var_arg = true
+            break
+        end
+
+        -- 最后一个实参是函数调用的返回值，且类型不明 (any)
+        if n_given.tag == 'Call' and i_arg == arg_count then
+            local arg_type = Types.get_node_type(n_given)
+            if arg_type.tag == 'Id' and arg_type[1] == 'Any' then
+                calling_with_var_arg = true
+            end
             break
         end
 
