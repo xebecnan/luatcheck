@@ -21,7 +21,7 @@ end
 
 --------------------------------
 
-local function check_file(c, filename)
+local function check_file(c, filename, dump_ast)
     local ast = Parser(c, filename, true)
     if ast then
         -- print('-------------------------- Scoper')
@@ -57,7 +57,9 @@ local function check_file(c, filename)
             return
         end
 
-        -- print(SerializeAst(root))
+        if dump_ast then
+            print(SerializeAst(root))
+        end
     end
 end
 
@@ -85,6 +87,7 @@ local function main(...)
     if n > 0 then
         local mode = nil
         local stdin_filename = nil
+        local dump_ast = false
         for i = 1, n do
             local s = select(i, ...)
             if mode == 'STDIN_FILENAME' then
@@ -93,22 +96,24 @@ local function main(...)
             else
                 if s == '--filename' then
                     mode = 'STDIN_FILENAME'
+                elseif s == '--debug' then
+                    dump_ast = true
                 elseif s == '-' then
                     local filename = stdin_filename or '=stdin'
                     local c = io.stdin:read('a')
                     io.stdin:close()
-                    check_file(c, filename)
+                    check_file(c, filename, dump_ast)
                 elseif is_file(s) then
                     local f = io.open(s, 'r')
                     local c = f:read('a')
                     f:close()
-                    check_file(c, s)
+                    check_file(c, s, dump_ast)
                 elseif is_dir(s) then
                     iter_all_lua_files(s, function(filepath)
                         local f = io.open(filepath, 'r')
                         local c = f:read('a')
                         f:close()
-                        check_file(c, filepath)
+                        check_file(c, filepath, dump_ast)
                     end)
                 else
                     error('bad argument: ' .. s)
