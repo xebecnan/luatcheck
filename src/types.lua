@@ -245,6 +245,24 @@ end
 
 --------------------------------
 
+function M.inference_func_type(info, n_parlist)
+    local n_partypes = { tag='TypeArgList', info=n_parlist.info }
+    for i = 1, #n_parlist do
+        local n_par = n_parlist[i]
+        if n_par.tag == 'VarArg' then
+            n_partypes[#n_partypes+1] = { tag='VarArg', info=n_par.info }
+        elseif n_par.tag == 'Id' then
+            n_partypes[#n_partypes+1] = { tag='Id', parname=n_par[1], 'Any' }
+        else
+            errorf('bad parameter tag: %s', n_par.tag)
+        end
+    end
+    local n_ret = { tag='Id', 'Any' }
+    return { tag='TypeFunction', info=info, n_partypes, n_ret }
+end
+
+--------------------------------
+
 local function dump_type_obj(ast)
     local keys = ast.keys
     local hash = ast.hash

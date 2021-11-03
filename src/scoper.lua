@@ -65,6 +65,20 @@ function F:LocalFunctionDef(ast, env, walk_node)
     leave_scope(ast[2], env)
 end
 
+-- 把 scope 设在 NameList 上
+function F:Function(ast, env, walk_node)
+    assert(ast[1].tag == 'NameList')
+    assert(ast[2].tag == 'Block')
+
+    enter_scope(ast[1], env)
+    self(ast[1])
+    ast[2].scope = env.scope
+    for i = 1, #ast[2] do
+        self(ast[2][i])
+    end
+    leave_scope(ast[1], env)
+end
+
 --------------------------------
 
 local function walk_func(walker, ast, env, walk_node)

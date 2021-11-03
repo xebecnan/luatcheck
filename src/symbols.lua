@@ -144,7 +144,10 @@ local function find_symbol(namespace, ast, narrow_func)
         end
     elseif ast.tag == 'Block' then
         return find_id_symbol_aux(namespace, ast, '__return__', nil)
-
+    elseif ast.tag == 'Function' then
+        local n_parlist = ast[1]
+        local Types = require('types')
+        return Types.inference_func_type(ast.info, n_parlist)
     else
         ast_error(ast, 'find_symbol not support tag: %s', ast.tag)
         return { tag='Id', 'Any' }

@@ -81,31 +81,13 @@ function F:Tpbind(ast, env, walk_node)
 end
 
 -- 简单的类型推断: 只考虑参数数量，参数和返回值都按 any 类型处理
-local function inference_type_for_function(ast)
-    local n_funcname    = ast[1]
-    local n_parlist     = ast[2]
-    local n_partypes = { tag='TypeArgList', info=n_parlist.info }
-    for i = 1, #n_parlist do
-        local n_par = n_parlist[i]
-        if n_par.tag == 'VarArg' then
-            n_partypes[#n_partypes+1] = { tag='VarArg', info=n_par.info }
-        elseif n_par.tag == 'Id' then
-            n_partypes[#n_partypes+1] = { tag='Id', parname=n_par[1], 'Any' }
-        else
-            errorf('bad parameter tag: %s', n_par.tag)
-        end
-    end
-    local n_ret = { tag='Id', 'Any' }
-    return { tag='TypeFunction', info=ast.info, n_partypes, n_ret }
-end
-
 local function function_def_common(ast, env, walk_node)
     local n_funcname    = ast[1]
     local n_parlist     = ast[2]
 
     local si = Symbols.find_var(n_funcname)
     if si.tag == 'Id' and si[1] == 'Any' then
-        Symbols.set_var(n_funcname, inference_type_for_function(ast))
+        Symbols.set_var(n_funcname, Types.inference_func_type(ast.info, n_parlist))
     else
         local par_types = si[1]
 
