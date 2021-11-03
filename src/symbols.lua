@@ -139,7 +139,7 @@ local function find_symbol(namespace, ast, narrow_func)
         elseif si.tag == 'TypeFunction' then
             return si[2] or errorf('symbol info error. funcname: %s', dump_table(ast[1]))
         else
-            ast_error(ast, 'get_node_type. bad si tag: %s', si.tag)
+            ast_error(ast, 'find_symbol bad si tag: %s', si.tag)
             return { tag='Id', 'Any' }
         end
     elseif ast.tag == 'Block' then

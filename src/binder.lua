@@ -13,7 +13,7 @@ end
 
 local function convert_type(ast)
     if ast.tag == 'TypeFunction' then
-        return { tag='TypeFunction', info=ast.info, convert_type(ast[1]), convert_type(ast[2]) }
+        return { tag='TypeFunction', info=ast.info, is_require=ast.is_require, convert_type(ast[1]), convert_type(ast[2]) }
     elseif ast.tag == 'Id' then
         local typename = ast[1]
 
@@ -55,8 +55,6 @@ local function convert_type(ast)
     --     return { tag='CloseTypeObj', info=ast.info }
     elseif ast.tag == 'OptArg' then
         return { tag='OptArg', info=ast.info, convert_type(ast[1]) }
-    elseif ast.tag == 'Require' then
-        return { tag='Require', info=ast.info, convert_type(ast[1]) }
     else
         error('unknown type node tag: ' .. ast.tag)
     end

@@ -210,11 +210,7 @@ match_type = function(expect, given)
         return true
     end
 
-    if expect.tag == 'Require' and given.tag == 'Require' then
-        if match_type(expect[1], given[1]) then
-            return true
-        end
-    elseif expect.tag == 'Id' and given.tag == 'Id' then
+    if expect.tag == 'Id' and given.tag == 'Id' then
         if is_subtype_of(given[1], expect[1]) then
             return true
         end
@@ -322,8 +318,6 @@ function F:Call(ast, env, walk_node)
     if si.tag == 'TypeFunction' then
         n_partypes = si[1]
     elseif si.tag == 'OptArg' and si[1].tag == 'TypeFunction' then
-        n_partypes = si[1][1]
-    elseif si.tag == 'Require' then
         n_partypes = si[1][1]
     elseif si.tag == 'Id' and si[1] == 'Any' then
         -- 调用的函数为 any 类型，跳过检查

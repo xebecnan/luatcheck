@@ -430,7 +430,8 @@ local function primarytype(e)
         n = typetable(e, true)
     elseif e.tt == 'ID' and e.tv == 'handle_require' then
         e:next_token()
-        n = { tag='Require', info=info, primarytype(e) }
+        n = primarytype(e)
+        n.is_require = true
     elseif e.tt == '{' then
         n = typetable(e, false)
     elseif e:try_skip('(') then

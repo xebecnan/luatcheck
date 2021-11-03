@@ -190,8 +190,12 @@ get_node_type_impl = function(ast)
     elseif ast.tag == 'Call' then
         local si = Symbols.find_var(ast[1])
         if si.tag == 'TypeFunction' then
-            return si[2]
-        elseif si.tag == 'Require' then
+            -- 普通函数
+            if not si.is_require then
+                return si[2]
+            end
+
+            -- require 函数
             assert(ast[2].tag == 'ExpList')
             -- 只能处理直接用字符串字面量作为参数的
             -- (可以进一步研究下能不能处理一些简介传递的方式)
@@ -294,6 +298,9 @@ function M.get_full_type_name(ast, with_par_name)
         return M.get_type_name(ast[1])
     elseif ast.tag == 'TypeFunction' then
         local b = {}
+        if ast.is_require then
+            b[#b+1] = '(require) '
+        end
         for i = 1, #ast[1] do
             b[#b+1] = M.get_full_type_name(ast[1][i], false)
             if i ~= #ast[1] then
@@ -313,8 +320,6 @@ function M.get_full_type_name(ast, with_par_name)
         return '...'
     elseif ast.tag == 'OptArg' then
         return M.get_full_type_name(ast[1], with_par_name) .. '?'
-    elseif ast.tag == 'Require' then
-        return '(require) ' .. M.get_full_type_name(ast[1], with_par_name)
     -- elseif ast.tag == 'CloseTypeObj' then
     --     error
     else

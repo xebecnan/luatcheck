@@ -233,10 +233,6 @@ function F:DumpVar(ast)
     walk(self, ast[1])
 end
 
-function F:Require(ast)
-    walk(self, ast[1])
-end
-
 function F:RefToNextSymbol(ast)
     -- pass
 end
