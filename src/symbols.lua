@@ -70,15 +70,46 @@ local function find_symbol(namespace, ast, narrow_func)
                 local key = n[1]
                 return si1.hash[key] or { tag='Id', 'Any' }
             else
-                ast_error(ast, "index a non-table value")
+                -- TODO: 也可能是 string 或其他有 __index metamethod 的东西
+                -- ast_error(ast, "index a non-table value")
                 return { tag='Id', 'Any' }
             end
         else
             return { tag='Id', 'Any' }
         end
     elseif ast.tag == 'Index' then
-        ast_error(ast, 'find_symbol not support <Index> yet: TODO')
-        return { tag='Id', 'Any' }
+        local si1 = find_symbol(namespace, ast[1], nil)
+        if not si1 then
+            return { tag='Id', 'Any' }
+        end
+        if si1.tag == 'Id' and si1[1] == 'Any' then
+            return { tag='Id', 'Any' }
+        end
+        if si1.tag ~= 'TypeObj' then
+            -- TODO: 也可能是 string 或其他有 __index metamethod 的东西
+            -- ast_error(ast, "index a non-table value")
+            return { tag='Id', 'Any' }
+        end
+
+        local Types = require('types')
+        local field_type = Types.get_node_type(ast[2])
+        if field_type.tag == 'Id' and field_type[1] == 'Any' then
+            return { tag='Id', 'Any' }
+        elseif field_type.tag == 'Id' and field_type[1] == 'Str' then
+            -- literal string as index
+            assert(ast[2].tag == 'Str')
+            local key = ast[2][1]
+            return si1.hash[key]  -- 可能为 nil，表示字段不存在
+        elseif field_type.tag == 'Id' and field_type[1] == 'Integer' then
+            -- literal integer as index
+            assert(ast[2].tag == 'Integer')
+            local key = ast[2][1]
+            return si1.hash[key]  -- 可能为 nil，表示字段不存在
+        else
+            -- TODO: 其他类型作为 key
+            ast_error(ast, "find_symbol not support '%s' yet: TODO", Types.get_full_type_name(field_type, false))
+            return { tag='Id', 'Any' }
+        end
     elseif ast.tag == 'FuncName' then
         if #ast >= 2 then
             assert(ast[1].tag == 'Id')

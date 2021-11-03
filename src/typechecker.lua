@@ -313,6 +313,7 @@ function F:Call(ast, env, walk_node)
 
     local si = Symbols.find_var(n_funcname)
     if not si then
+        ast_error(ast, "attempt to call a nil value '%s'", dump_funcname(n_funcname))
         walk_node(self, ast)
         return
     end
