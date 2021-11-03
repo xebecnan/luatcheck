@@ -246,7 +246,7 @@ return function(s, debug_hint, is_file)
                 end
             end
         end
-        i = saved
+        i = saved; c =s:sub(i, i)
         return false
     end
 
@@ -260,7 +260,7 @@ return function(s, debug_hint, is_file)
                 return true
             end
         end
-        i = saved
+        i = saved; c = s:sub(i, i)
         return false
     end
 
