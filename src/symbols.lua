@@ -20,6 +20,9 @@ local function find_id_symbol_aux(namespace, scope, name, narrow_func)
                 -- expand
                 local Types = require('types')
                 si = Types.get_node_type(si[1])
+                if si.tag == 'Id' and si[1] == 'Nil' then
+                    si = { tag='Id', 'Any' }
+                end
                 t[name] = si
             end
             if si.tag == 'Id' and si[1] == 'Any' and narrow_func then
