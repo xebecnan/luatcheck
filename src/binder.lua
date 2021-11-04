@@ -2,6 +2,7 @@ local Walk = require('walk')
 local Types = require('types')
 local Symbols = require('symbols')
 local Util = require 'util'
+local SerializeAst = require 'serialize_ast'
 
 local TYPE_NAME2ID = Types.TYPE_NAME2ID
 local sf = string.format
@@ -132,6 +133,26 @@ end
 
 function F:FunctionDef(ast, env, walk_node)
     function_def_common(ast, env, walk_node)
+    walk_node(self, ast)
+end
+
+function F:Set(ast, env, walk_node)
+    -- 没有想清楚，暂时只处理一种情况：往 table 里添加字段
+    local name_list = ast[1]
+    local expr_list = ast[2]
+
+    for i = 1, #name_list do
+        local name = name_list[i]
+        local expr = expr_list[i]
+        if expr then
+            local si = Symbols.find_var(name)
+            if not si then
+                local expr_type = Types.get_node_type(expr)
+                Symbols.set_var(name, expr_type)
+            end
+        end
+    end
+
     walk_node(self, ast)
 end
 

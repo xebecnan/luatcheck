@@ -184,8 +184,8 @@ get_node_type_impl = function(ast)
         -- TODO
         return { tag='Id', 'Any' }
     elseif ast.tag == 'Function' then
-        -- TODO
-        return { tag='Id', 'Any' }
+        local n_parlist = ast[1]
+        return M.inference_func_type(ast.info, n_parlist)
     elseif ast.tag == 'VarArg' then
         return { tag='VarArg', info=ast.info }
     else
