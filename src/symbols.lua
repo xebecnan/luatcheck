@@ -37,9 +37,10 @@ local function find_id_symbol_aux(namespace, scope, name, narrow_func)
         end
         scope = scope.parent
     end
-    si = { tag='Id', 'Any' }
     if narrow_func then
-        si = narrow_func(si)
+        si = narrow_func(nil)
+    else
+        si = { tag='Id', 'Any' }
     end
     raw_scope.symbols[namespace][name] = si
     return si
@@ -48,7 +49,23 @@ end
 local function narrow_to_type_obj(si)
     local keys = {}
     local hash = {}
-    return { tag='TypeObj', info=si.info, keys=keys, hash=hash, open=true }
+    -- open 表示当前状态下这个 table 是可以往里面添加字段的
+    -- partial 表示并不知道 table 的完整信息，假设可能存在我们不知道的字段
+    return { tag='TypeObj', info=(si and si.info), keys=keys, hash=hash, open=true, partial=not si }
+end
+
+local function get_table_field(si, key)
+    local field_type = si.hash[key]
+    if field_type then
+        return field_type
+    end
+
+    -- partial 表示并不知道 table 的完整信息，假设可能存在我们不知道的字段
+    if si.partial then
+        return { tag='Id', 'Any' }
+    end
+
+    return nil
 end
 
 local set_symbol
@@ -75,7 +92,7 @@ local function find_symbol(namespace, ast, narrow_func)
                 local n = ast[2]
                 assert(n.tag == 'Id')
                 local key = n[1]
-                return si1.hash[key]  -- 不存在的话返回 nil, 不再用 any 兼容
+                return get_table_field(si1, key)
             else
                 -- TODO: 也可能是 string 或其他有 __index metamethod 的东西
                 -- ast_error(ast, "index a non-table value")
@@ -106,12 +123,12 @@ local function find_symbol(namespace, ast, narrow_func)
             -- literal string as index
             assert(ast[2].tag == 'Str')
             local key = ast[2][1]
-            return si1.hash[key]  -- 可能为 nil，表示字段不存在
+            return get_table_field(si1, key)
         elseif field_type.tag == 'Id' and field_type[1] == 'Integer' then
             -- literal integer as index
             assert(ast[2].tag == 'Integer')
             local key = ast[2][1]
-            return si1.hash[key]  -- 可能为 nil，表示字段不存在
+            return get_table_field(si1, key)
         else
             -- TODO: 其他类型作为 key
             ast_error(ast, "find_symbol not support '%s' yet: TODO", Types.get_full_type_name(field_type, false))
