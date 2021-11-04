@@ -6,7 +6,7 @@ function M.strlen(s)
     return #s
 end
 
--->> M.func_to_be_checked :: void >> void
+-->> M.func_to_be_checked :: >> void
 function M.func_to_be_checked()
     -- ok
     M.strlen('a')

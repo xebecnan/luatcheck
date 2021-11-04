@@ -458,19 +458,24 @@ end
 typeexp = function(e)
     local info = newinfo(e)
 
-    local n = primarytype(e)
+    local n_args
+    if e.tt ~= '>>' then
+        local n = primarytype(e)
 
-    -- 不是 TypeFunction
-    if e.tt ~= ',' and e.tt ~= '>>' then
-        return n
-    end
+        -- 不是 TypeFunction
+        if e.tt ~= ',' and e.tt ~= '>>' then
+            return n
+        end
 
-    -- 是 TypeFunction
+        -- 是 TypeFunction
 
-    local n_args = { tag='TypeArgList', info=info, n }
+        n_args = { tag='TypeArgList', info=info, n }
 
-    while e:try_skip(',') do
-        n_args[#n_args+1] = primarytype(e)
+        while e:try_skip(',') do
+            n_args[#n_args+1] = primarytype(e)
+        end
+    else
+        n_args = { tag='TypeArgList', info=info }
     end
 
     e:check_skip('>>')
