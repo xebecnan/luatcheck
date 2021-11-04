@@ -141,9 +141,9 @@ local function match_table(expect, given)
             local nk = given_ast[i]
             local nv = given_ast[i+1]
             if nk.tag == 'Integer' then
-                only_in_given[nk[1]] = nv
+                only_in_given[nk[1]] = Types.get_node_type(nv)
             elseif nk.tag == 'Id' then
-                only_in_given[nk[1]] = nv
+                only_in_given[nk[1]] = Types.get_node_type(nv)
             else
                 ast_error(nk, 'cannot determin the type of key')
             end
@@ -158,14 +158,13 @@ local function match_table(expect, given)
         local hash = expect.hash
         for _, k in ipairs(keys) do
             local n_fieldtype = hash[k]
-            local to_match = only_in_given[k]
-            if not to_match then
+            local to_match_type = only_in_given[k]
+            if not to_match_type then
                 -- only in expect
                 return false
             end
 
             only_in_given[k] = nil
-            local to_match_type = Types.get_node_type(to_match)
             if not match_type(n_fieldtype, to_match_type) then
                 -- not match
                 return false

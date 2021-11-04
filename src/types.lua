@@ -84,7 +84,7 @@ local function build_typetable(ast)
     for i = 1, #ast, 2 do
         local nk = ast[i]
         local nv = ast[i+1]
-        if nk == 'Integer' or nk == 'Id' then
+        if nk.tag == 'Integer' or nk.tag == 'Id' then
             local k = nk[1]
             keys[#keys+1] = k
             hash[k] = get_node_type_impl(nv)
@@ -99,7 +99,7 @@ get_node_type_impl = function(ast)
             return build_typetable(ast)
         end
 
-        return { tag='Id', ast.tag, ast }
+        return { tag='Id', ast.tag }
 
     elseif ast.tag == 'BinOpr' then
         local op = ast[1]
