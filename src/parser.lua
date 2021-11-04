@@ -275,9 +275,10 @@ end
 
 -- funcstat -> FUNCTION funcname body
 local function funcstat(e)
+    local info = newinfo(e)
     local n_funcname = funcname(e)
     local n_parlist, n_block = body(e)
-    return { tag='FunctionDef', info=newinfo(e), n_funcname, n_parlist, n_block }
+    return { tag='FunctionDef', info=info, n_funcname, n_parlist, n_block }
 end
 
 local function localfunc(e)
