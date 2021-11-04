@@ -115,20 +115,18 @@ local function find_symbol(namespace, ast, narrow_func)
             return { tag='Id', 'Any' }
         end
 
+        if ast[2].tag == 'Str' then
+            local key = ast[2][1]
+            return get_table_field(si1, key)
+        elseif ast[2].tag == 'Integer' then
+            local key = ast[2][1]
+            return get_table_field(si1, key)
+        end
+
         local Types = require('types')
         local field_type = Types.get_node_type(ast[2])
         if field_type.tag == 'Id' and field_type[1] == 'Any' then
             return { tag='Id', 'Any' }
-        elseif field_type.tag == 'Id' and field_type[1] == 'Str' then
-            -- literal string as index
-            assert(ast[2].tag == 'Str')
-            local key = ast[2][1]
-            return get_table_field(si1, key)
-        elseif field_type.tag == 'Id' and field_type[1] == 'Integer' then
-            -- literal integer as index
-            assert(ast[2].tag == 'Integer')
-            local key = ast[2][1]
-            return get_table_field(si1, key)
         else
             -- TODO: 其他类型作为 key
             ast_error(ast, "find_symbol not support '%s' yet: TODO", Types.get_full_type_name(field_type, false))
