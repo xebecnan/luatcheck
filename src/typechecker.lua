@@ -216,10 +216,6 @@ match_type = function(expect, given)
         end
     elseif expect.tag == 'VarArg' then
         return true
-    elseif expect.tag == 'OptArg' then
-        if match_type(expect[1], given) then
-            return true
-        end
     elseif expect.tag == 'TypeFunction' then
         if given.tag == 'TypeFunction' then
             if match_func_type(expect, given) then
@@ -331,8 +327,6 @@ function F:Call(ast, env, walk_node)
     local n_partypes
     if si.tag == 'TypeFunction' then
         n_partypes = si[1]
-    elseif si.tag == 'OptArg' and si[1].tag == 'TypeFunction' then
-        n_partypes = si[1][1]
     elseif si.tag == 'Id' and si[1] == 'Any' then
         -- 调用的函数为 any 类型，跳过检查
         walk_node(self, ast)
@@ -391,7 +385,7 @@ function F:Call(ast, env, walk_node)
 
     if not error_flag and not calling_with_var_arg and i_par <= #n_partypes then
         local n_expet = n_partypes[i_par]
-        if n_expet.tag ~= 'VarArg' and n_expet.tag ~= 'OptArg' then
+        if n_expet.tag ~= 'VarArg' and not n_expet.is_opt then
             ast_error(ast, 'missing arg #%d "%s" to function "%s"',
                 i_par, Types.get_full_type_name(n_expet, true), dump_funcname(n_funcname))
         end

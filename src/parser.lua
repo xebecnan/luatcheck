@@ -448,7 +448,7 @@ local function primarytype(e)
     end
 
     if e:try_skip('?') then
-        n = { tag='OptArg', info=info, n }
+        n.is_opt = true
     end
 
     return n

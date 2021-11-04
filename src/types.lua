@@ -271,11 +271,7 @@ local function dump_type_table(ast)
     return table.concat(b, '')
 end
 
-function M.get_full_type_name(ast, with_par_name)
-    if with_par_name and ast.parname then
-        return sf("%s (%s)", ast.parname, M.get_full_type_name(ast, false))
-    end
-
+local function get_full_type_name_aux(ast, with_par_name)
     if ast.tag == 'Id' then
         return M.get_type_name(ast[1])
     elseif ast.tag == 'TypeFunction' then
@@ -300,12 +296,23 @@ function M.get_full_type_name(ast, with_par_name)
         return dump_type_table(ast[1])
     elseif ast.tag == 'VarArg' then
         return '...'
-    elseif ast.tag == 'OptArg' then
-        return M.get_full_type_name(ast[1], with_par_name) .. '?'
     -- elseif ast.tag == 'CloseTypeObj' then
     --     error
     else
         error(sf('get_full_type_name error: %s', dump_table(ast)))
+    end
+end
+
+function M.get_full_type_name(ast, with_par_name)
+    if with_par_name and ast.parname then
+        return sf("%s (%s)", ast.parname, M.get_full_type_name(ast, false))
+    end
+
+    local s = get_full_type_name_aux(ast, with_par_name)
+    if ast.is_opt then
+        return s ..'?'
+    else
+        return s
     end
 end
 

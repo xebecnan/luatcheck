@@ -12,16 +12,18 @@ local errorf = function(...)
     error(sf(...))
 end
 
-local function convert_type(ast)
+local convert_type
+
+local function convert_type_aux(ast)
     if ast.tag == 'TypeFunction' then
-        return { tag='TypeFunction', info=ast.info, is_require=ast.is_require, convert_type(ast[1]), convert_type(ast[2]) }
+        return { tag='TypeFunction', is_require=ast.is_require, convert_type(ast[1]), convert_type(ast[2]) }
     elseif ast.tag == 'Id' then
         local typename = ast[1]
 
         -- 基础类型
         local id = TYPE_NAME2ID[typename]
         if id then
-            return { tag='Id', info=ast.info, id }
+            return { tag='Id', id }
         end
 
         -- 自定义类型
@@ -33,9 +35,9 @@ local function convert_type(ast)
         return { tag='TypeAlias', typename, ti }
 
     elseif ast.tag == 'VarArg' then
-        return { tag='VarArg', info=ast.info }
+        return { tag='VarArg' }
     elseif ast.tag == 'TypeArgList' then
-        local nn = { tag='TypeArgList', info=ast.info}
+        local nn = { tag='TypeArgList'}
         for i = 1, #ast do
             nn[i] = convert_type(ast[i])
         end
@@ -43,7 +45,7 @@ local function convert_type(ast)
     elseif ast.tag == 'TypeObj' then
         local keys = ast.keys
         local hash = ast.hash
-        local nn = { tag='TypeObj', info=ast.info, keys=keys, hash=hash, open=ast.open }
+        local nn = { tag='TypeObj', keys=keys, hash=hash, open=ast.open }
         for _, k in ipairs(keys) do
             hash[k] = convert_type(hash[k])
         end
@@ -53,12 +55,19 @@ local function convert_type(ast)
         -- end
         return nn
     -- elseif ast.tag == 'CloseTypeObj' then
-    --     return { tag='CloseTypeObj', info=ast.info }
-    elseif ast.tag == 'OptArg' then
-        return { tag='OptArg', info=ast.info, convert_type(ast[1]) }
+    --     return { tag='CloseTypeObj' }
     else
         error('unknown type node tag: ' .. ast.tag)
     end
+end
+
+convert_type = function(ast)
+    local v = convert_type_aux(ast)
+    v.info = ast.info
+    if ast.is_opt then
+        v.is_opt = true
+    end
+    return v
 end
 
 --------------------------------
@@ -108,8 +117,7 @@ local function function_def_common(ast, env, walk_node)
             end
             if n_par.tag == 'Id' and not n_type.parname then
                 if n_type.tag == 'VarArg' then
-                    local any = { tag='Id', info=n_type.info, parname=n_par[1], 'Any' }
-                    table.insert(par_types, i, { tag='OptArg', info=n_type.info, any })
+                    table.insert(par_types, i, { tag='Id', info=n_type.info, parname=n_par[1], is_opt=true, 'Any' })
                 else
                     n_type.parname = n_par[1]
                 end

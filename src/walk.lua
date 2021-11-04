@@ -225,10 +225,6 @@ function F:While(ast)
     walk(self, ast[2])  -- block
 end
 
-function F:OptArg(ast)
-    walk(self, ast[1])
-end
-
 function F:DumpVar(ast)
     walk(self, ast[1])
 end
