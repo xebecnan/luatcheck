@@ -21,7 +21,7 @@ end
 
 --------------------------------
 
-local function check_file(c, filename, dump_ast)
+local function check_file(c, filename, dump_mode)
     local ast = Parser(c, filename, true)
     if ast then
         -- print('-------------------------- Scoper')
@@ -57,7 +57,9 @@ local function check_file(c, filename, dump_ast)
             return
         end
 
-        if dump_ast then
+        if dump_mode == 'FILE' then
+            print(SerializeAst(ast))
+        elseif dump_mode == 'ROOT' then
             print(SerializeAst(root))
         end
     end
@@ -87,7 +89,7 @@ local function main(...)
     if n > 0 then
         local mode = nil
         local stdin_filename = nil
-        local dump_ast = false
+        local dump_mode = nil
         for i = 1, n do
             local s = select(i, ...)
             if mode == 'STDIN_FILENAME' then
@@ -97,23 +99,25 @@ local function main(...)
                 if s == '--filename' then
                     mode = 'STDIN_FILENAME'
                 elseif s == '--debug' then
-                    dump_ast = true
+                    dump_mode = 'FILE'
+                elseif s == '--debug-builtin' then
+                    dump_mode = 'ROOT'
                 elseif s == '-' then
                     local filename = stdin_filename or '=stdin'
                     local c = io.stdin:read('a')
                     io.stdin:close()
-                    check_file(c, filename, dump_ast)
+                    check_file(c, filename, dump_mode)
                 elseif is_file(s) then
                     local f = io.open(s, 'r')
                     local c = f:read('a')
                     f:close()
-                    check_file(c, s, dump_ast)
+                    check_file(c, s, dump_mode)
                 elseif is_dir(s) then
                     iter_all_lua_files(s, function(filepath)
                         local f = io.open(filepath, 'r')
                         local c = f:read('a')
                         f:close()
-                        check_file(c, filepath, dump_ast)
+                        check_file(c, filepath, dump_mode)
                     end)
                 else
                     error('bad argument: ' .. s)
