@@ -115,6 +115,7 @@ local function find_symbol(namespace, ast, narrow_func)
             return { tag='Id', 'Any' }
         end
 
+        -- literal string / literal integer
         if ast[2].tag == 'Str' then
             local key = ast[2][1]
             return get_table_field(si1, key)
@@ -210,7 +211,28 @@ set_symbol = function(namespace, ast, setval)
             return
         end
     elseif ast.tag == 'Index' then
-        ast_error(ast, 'set_symbol not support <Index> yet: TODO')
+        local si1 = find_symbol(namespace, ast[1], narrow_to_type_obj)
+        if si1.tag == 'Id' and si1[1] == 'Any' then
+            return
+        end
+        if si1.tag ~= 'TypeObj' then
+            -- TODO: 也可能是 string 或其他有 __index metamethod 的东西
+            -- ast_error(ast, "index a non-table value")
+            return
+        end
+
+        -- literal string / literal integer
+        if ast[2].tag == 'Str' then
+            local key = ast[2][1]
+            si1.hash[key] = setval
+            return
+        elseif ast[2].tag == 'Integer' then
+            local key = ast[2][1]
+            si1.hash[key] = setval
+            return
+        end
+
+        -- TODO: 暂时无法处理 key 是复杂表达式的情况
         return
     elseif ast.tag == 'FuncName' then
         if #ast >= 2 then
