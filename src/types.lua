@@ -156,7 +156,10 @@ get_node_type_impl = function(ast)
         end
     elseif ast.tag == 'Call' then
         local si = Symbols.find_var(ast[1])
-        if si.tag == 'TypeFunction' then
+        if not si then
+            -- called a nil value
+            return { tag='Id', 'Any' }
+        elseif si.tag == 'TypeFunction' then
             -- require 函数
             local require_path = ast.require_path
             if require_path then
