@@ -181,7 +181,7 @@ function F:Call(ast, env, walk_node)
     if ast.scope.is_file then
         local n_funcname = ast[1]
         local si = Symbols.find_var(n_funcname)
-        if si.tag == 'TypeFunction' and si.is_require then
+        if si and si.tag == 'TypeFunction' and si.is_require then
             if ast[2][1].tag == 'Str' then
                 local require_path = ast[2][1][1]
                 local requires = ast.scope.requires

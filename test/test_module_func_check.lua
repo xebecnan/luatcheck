@@ -15,6 +15,7 @@ function M.func_to_be_checked()
     -- error
     M.strlen(1)
     M.func_defined_after('a')
+    M.func_not_exist()
 end
 
 -->> M.func_defined_after :: number >> string

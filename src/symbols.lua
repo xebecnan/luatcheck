@@ -71,7 +71,7 @@ local function find_symbol(namespace, ast, narrow_func)
                 local n = ast[2]
                 assert(n.tag == 'Id')
                 local key = n[1]
-                return si1.hash[key] or { tag='Id', 'Any' }
+                return si1.hash[key]  -- 不存在的话返回 nil, 不再用 any 兼容
             else
                 -- TODO: 也可能是 string 或其他有 __index metamethod 的东西
                 -- ast_error(ast, "index a non-table value")
