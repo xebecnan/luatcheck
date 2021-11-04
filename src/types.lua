@@ -1,5 +1,6 @@
 local Util = require 'util'
 local Symbols = require 'symbols'
+local Requirer = require 'requirer'
 
 local to_hash = Util.to_hash
 local ast_error = Util.ast_error
@@ -41,8 +42,6 @@ local IS_RELA_OPR = to_hash(RELA_OPR)
 local IS_LOGI_OPR = to_hash(LOGI_OPR)
 local IS_BITW_OPR = to_hash(BITW_OPR)
 local IS_ARIT_OPR = to_hash(ARIT_OPR)
-
-local require_cache = {}
 
 function M.get_type_name(t)
     local v = TYPE_DEF[t] or errorf('unknown type: %s', t)
@@ -92,38 +91,6 @@ local function build_typetable(ast)
         end
     end
     return n_tpobj
-end
-
-local function handle_require(require_path)
-    -- print('require found:', require_path)
-    local require_type = require_cache[require_path]
-    if not require_type then
-        local filename = require_path:gsub('%.', '\\') .. '.lua'
-        -- print('filename:', filename)
-        local f = io.open(filename, 'r')
-        if f then
-            local c = f:read('a')
-            f:close()
-
-            local Parser = require('parser')
-            local Scoper = require('scoper')
-            local Builtin = require('builtin')
-            local Binder = require('binder')
-
-            local ast = Parser(c, filename, true)
-            if ast then
-                Scoper(ast)
-                local root = Builtin(ast)
-                Binder(root)
-                local file_block = root[1]
-                assert(file_block.is_file == true)
-                require_type = Symbols.find_var(file_block)
-            end
-        end
-        require_type = require_type or { tag='Id', 'Any' }
-        require_cache[require_path] = require_type
-    end
-    return require_type
 end
 
 get_node_type_impl = function(ast)
@@ -190,21 +157,15 @@ get_node_type_impl = function(ast)
     elseif ast.tag == 'Call' then
         local si = Symbols.find_var(ast[1])
         if si.tag == 'TypeFunction' then
-            -- 普通函数
-            if not si.is_require then
-                return si[2]
+            -- require 函数
+            local require_path = ast.require_path
+            if require_path then
+                local rinfo = Requirer(require_path)
+                return rinfo.require_type
             end
 
-            -- require 函数
-            assert(ast[2].tag == 'ExpList')
-            -- 只能处理直接用字符串字面量作为参数的
-            -- (可以进一步研究下能不能处理一些简介传递的方式)
-            if ast[2][1].tag == 'Str' then
-                local require_path = ast[2][1][1]
-                return handle_require(require_path)
-            else
-                return { tag='Id', 'Any' }
-            end
+            -- 普通函数
+            return si[2]
         elseif si.tag == 'Id' and si[1] == 'Any' then
             return { tag='Id', 'Any' }
         else

@@ -5,6 +5,7 @@ local Util = require 'util'
 local Walk = require('walk')
 local Symbols = require('symbols')
 local SerializeAst = require 'serialize_ast'
+local Requirer = require 'requirer'
 
 local get_type_name = Types.get_type_name
 local is_subtype_of = Types.is_subtype_of
@@ -303,6 +304,20 @@ local function dump_funcname(ast)
     return table.concat(b, '')
 end
 
+local function check_circular_require(hist, require_path)
+    hist[require_path] = true
+    local rinfo = Requirer(require_path)
+    if rinfo.requires then
+        for _, path in ipairs(rinfo.requires) do
+            if hist[path] or check_circular_require(hist, path) then
+                return true
+            end
+        end
+    end
+    hist[require_path] = nil
+    return false
+end
+
 function F:Call(ast, env, walk_node)
     local n_funcname    = ast[1]
     local n_arglist     = ast[2]
@@ -325,6 +340,12 @@ function F:Call(ast, env, walk_node)
         return
     else
         error(sf("expect 'TypeFunction', but given '%s'", si.tag))
+    end
+
+    if ast.scope.is_file and ast.require_path then
+        if check_circular_require({}, ast.require_path) then
+            ast_error(ast, 'circular reference found: %s', ast.require_path)
+        end
     end
 
     local i_par = 1

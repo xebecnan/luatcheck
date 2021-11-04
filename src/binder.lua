@@ -174,6 +174,26 @@ function F:Return(ast, env, walk_node)
     walk_node(self, ast)
 end
 
+function F:Call(ast, env, walk_node)
+    -- 只处理文件层级的
+    -- 否则会处理内层的 require()
+    -- 出现循环 require 出错
+    if ast.scope.is_file then
+        local n_funcname = ast[1]
+        local si = Symbols.find_var(n_funcname)
+        if si.tag == 'TypeFunction' and si.is_require then
+            if ast[2][1].tag == 'Str' then
+                local require_path = ast[2][1][1]
+                local requires = ast.scope.requires
+                requires[#requires+1] = require_path
+                ast.require_path = require_path
+            end
+        end
+    end
+
+    walk_node(self, ast)
+end
+
 --------------------------------
 
 local function walk_func(walker, ast, env, walk_node)
