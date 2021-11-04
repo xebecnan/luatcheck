@@ -130,6 +130,7 @@ dump_table = function(t, hist, indent, buffer, n)
                     and not (k == 'info' and hide_info)
                     and k ~= 'scope'
                     and k ~= 'parent'
+                    and k ~= 'errors'
                 )
             then
                 skeys[#skeys+1] = k

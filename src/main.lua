@@ -5,6 +5,7 @@ local Scoper = require('scoper')
 local Binder = require('binder')
 local Builtin = require('builtin')
 local Typechecker = require('typechecker')
+local Reporter = require 'reporter'
 local SerializeAst = require 'serialize_ast'
 
 local function usage()
@@ -56,6 +57,8 @@ local function check_file(c, filename, dump_mode)
             print(msg)
             return
         end
+
+        Reporter(root)
 
         if dump_mode == 'FILE' then
             print(SerializeAst(ast))
