@@ -187,6 +187,12 @@ function F:Local(ast, env, walk_node)
     walk_node(self, ast)
 end
 
+function F:Function(ast, env, walk_node)
+    Symbols.find_var(ast)
+
+    walk_node(self, ast)
+end
+
 function F:Return(ast, env, walk_node)
     local block = ast.scope
     -- 只处理文件层的 return

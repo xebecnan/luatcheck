@@ -181,6 +181,7 @@ dump_table = function(t, hist, indent, buffer, n)
     return n
 end
 
+-->> $ :: any, boolean? >> string
 return function(t, debug)
     local buffer = {}
     local hist = {}

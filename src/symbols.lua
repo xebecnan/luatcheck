@@ -128,8 +128,8 @@ local function find_symbol(namespace, ast, narrow_func)
         if field_type.tag == 'Id' and field_type[1] == 'Any' then
             return { tag='Id', 'Any' }
         else
-            -- TODO: 其他类型作为 key
-            ast_error(ast, "find_symbol not support '%s' yet: TODO", Types.get_full_type_name(field_type, false))
+            -- TODO: 其他类型作为 key, 之后可以支持按类型索引
+            -- ast_error(ast, "find_symbol not support '%s' yet: TODO", Types.get_full_type_name(field_type, false))
             return { tag='Id', 'Any' }
         end
     elseif ast.tag == 'FuncName' then
@@ -164,6 +164,11 @@ local function find_symbol(namespace, ast, narrow_func)
     elseif ast.tag == 'Block' then
         return find_id_symbol_aux(namespace, ast, '__return__', nil)
     elseif ast.tag == 'Function' then
+        local si = find_id_symbol_aux(namespace, ast.scope, ast, nil)
+        if si then
+            return si
+        end
+
         local n_parlist = ast[1]
         local Types = require('types')
         return Types.inference_func_type(ast.info, n_parlist)
@@ -233,6 +238,9 @@ set_symbol = function(namespace, ast, setval)
         assert(ast.scope == ast)
         local t = ast.symbols[namespace]
         t['__return__'] = setval
+    elseif ast.tag == 'Function' then
+        local t = ast.scope.symbols[namespace]
+        t[ast] = setval
     elseif ast.tag == 'RefToNextSymbol' then
         local t = ast.scope.symbols[namespace] or errorf('bad namespace: %s', namespace)
         t['__next_symbol__'] = setval

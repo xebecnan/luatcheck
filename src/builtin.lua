@@ -11,7 +11,7 @@ local BUILTIN = [[
 ]]
 
 local function init_global_symbols()
-    local ast = Parser(BUILTIN, 'BUILTIN')
+    local ast = Parser(BUILTIN, 'BUILTIN', false)
     Scoper(ast)
     Binder(ast)
     return ast.symbols
