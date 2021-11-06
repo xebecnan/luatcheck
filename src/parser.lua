@@ -726,8 +726,8 @@ return function(c, s, is_file)
     end
 
     function e:syntax_error(msg)
-        print(sf('%s:%d: (syntax_error) %s (near %s)', self:get_filename(), self:get_line_no(), msg, self:dump_token()))
-        coroutine.yield('__SYNTAX_ERROR__')
+        local err = sf('%s:%d: (syntax_error) %s (near %s)', self:get_filename(), self:get_line_no(), msg, self:dump_token())
+        coroutine.yield('__SYNTAX_ERROR__', err)
     end
 
     function e:dump_token()
@@ -752,12 +752,12 @@ return function(c, s, is_file)
         e:next_token()
         return mainfunc(e)
     end)
-    local ok, v = coroutine.resume(co)
+    local ok, v, err = coroutine.resume(co)
     if not ok then
         error(debug.traceback(co, v))
     end
     if v == '__SYNTAX_ERROR__' then
-        return nil
+        return nil, err
     end
 
     return v

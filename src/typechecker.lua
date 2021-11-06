@@ -335,9 +335,16 @@ function F:Call(ast, env, walk_node)
         error(sf("expect 'TypeFunction', but given '%s'", si.tag))
     end
 
-    if ast.scope.is_file and ast.require_path then
-        if check_circular_require({}, ast.require_path) then
-            ast_error(ast, 'circular reference found: %s', ast.require_path)
+    if ast.require_path then
+        if ast.scope.is_file then
+            if check_circular_require({}, ast.require_path) then
+                ast_error(ast, 'circular reference found: %s', ast.require_path)
+            end
+        end
+
+        local rinfo = Requirer(ast.require_path)
+        if rinfo.require_err then
+            ast_error(ast, rinfo.require_err)
         end
     end
 

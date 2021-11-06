@@ -8,6 +8,7 @@ return function(require_path)
 
         local require_type
         local requires
+        local require_err
         local filename = require_path:gsub('%.', '\\') .. '.lua'
         local f = io.open(filename, 'r')
         if f then
@@ -20,7 +21,7 @@ return function(require_path)
             local Binder = require('binder')
             local Symbols = require('symbols')
 
-            local ast = Parser(c, filename, true)
+            local ast, err = Parser(c, filename, true)
             if ast then
                 Scoper(ast)
                 local root = Builtin(ast)
@@ -29,12 +30,15 @@ return function(require_path)
                 assert(file_block.is_file == true)
                 require_type = Symbols.find_var(file_block)
                 requires = ast.requires
+            else
+                require_err = err
             end
         end
         require_type = require_type or { tag='Id', 'Any' }
         require_info = {
             require_type = require_type,
             requires = requires,
+            require_err = require_err
         }
         require_cache[require_path] = require_info
     end

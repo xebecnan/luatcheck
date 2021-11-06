@@ -23,7 +23,7 @@ end
 --------------------------------
 
 local function check_file(c, filename, dump_mode)
-    local ast = Parser(c, filename, true)
+    local ast, err = Parser(c, filename, true)
     if ast then
         -- print('-------------------------- Scoper')
         -- print(SerializeAst(ast))
@@ -65,6 +65,8 @@ local function check_file(c, filename, dump_mode)
         elseif dump_mode == 'ROOT' then
             print(SerializeAst(root))
         end
+    else
+        print(err)
     end
 end
 
