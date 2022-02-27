@@ -9,7 +9,7 @@ local Reporter = require 'reporter'
 local SerializeAst = require 'serialize_ast'
 
 local function usage()
-    print('usage: typechecker.exe [--filename stdin_filename] file1, ...')
+    print('usage: luatcheck [--filename stdin_filename] file1, ...')
 end
 
 local function is_dir(path)
