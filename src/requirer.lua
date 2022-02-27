@@ -1,5 +1,6 @@
 local require_cache = {}
 local dummy = {}
+local SEP = package.config:sub(1,1)
 
 return function(require_path)
     local require_info = require_cache[require_path]
@@ -9,7 +10,7 @@ return function(require_path)
         local require_type
         local requires
         local require_err
-        local filename = require_path:gsub('%.', '\\') .. '.lua'
+        local filename = require_path:gsub('%.', SEP) .. '.lua'
         local f = io.open(filename, 'r')
         if f then
             local c = f:read('a')
