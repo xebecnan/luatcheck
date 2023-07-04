@@ -9,6 +9,25 @@ end
 
 local M  = {}
 
+local function resolve_si(t, name, si, narrow_func)
+    if si.tag == 'TypeOfExpr' then
+        -- expand lazy node
+        local Types = require('types')
+        si = Types.get_node_type(si[1])
+        if si then
+            if si.tag == 'Id' and si[1] == 'Nil' then
+                si = { tag='Id', 'Any' }
+            end
+            t[name] = si
+        end
+    end
+    if si and si.tag == 'Id' and si[1] == 'Any' and narrow_func then
+        si = narrow_func(si)
+        t[name] = si
+    end
+    return si
+end
+
 local function find_id_symbol_aux(namespace, scope, name, narrow_func)
     local si
     local raw_scope = scope
@@ -16,24 +35,7 @@ local function find_id_symbol_aux(namespace, scope, name, narrow_func)
         local t = scope.symbols[namespace] or errorf('bad namespace: %s', namespace)
         si = t[name]
         if si then
-            if si.tag == 'TypeOfExpr' then
-                -- expand
-                local Types = require('types')
-                si = Types.get_node_type(si[1])
-                if si then
-                    if si.tag == 'Id' and si[1] == 'Nil' then
-                        si = { tag='Id', 'Any' }
-                    end
-                    t[name] = si
-                end
-            end
-            if si then
-                if si.tag == 'Id' and si[1] == 'Any' and narrow_func then
-                    si = narrow_func(si)
-                    t[name] = si
-                end
-            end
-            return si
+            return resolve_si(t, name, si, narrow_func)
         end
         scope = scope.parent
     end
@@ -81,7 +83,9 @@ local function find_symbol(namespace, ast, narrow_func)
 
     if ast.tag == 'Id' then
         return find_id_symbol_aux(namespace, ast.scope, ast[1], narrow_func)
-    elseif ast.tag == 'IndexShort' or ast.tag == 'Invoke' then
+    end
+
+    if ast.tag == 'IndexShort' or ast.tag == 'Invoke' then
         assert(ast[2].tag == 'Id')
         local si1 = find_symbol(namespace, ast[1], nil)
         if si1 then
@@ -101,7 +105,9 @@ local function find_symbol(namespace, ast, narrow_func)
         else
             return { tag='Id', 'Any' }
         end
-    elseif ast.tag == 'Index' then
+    end
+
+    if ast.tag == 'Index' then
         local si1 = find_symbol(namespace, ast[1], nil)
         if not si1 then
             return { tag='Id', 'Any' }

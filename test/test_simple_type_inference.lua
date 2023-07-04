@@ -1,25 +1,55 @@
-local function add(v1, v2)
-    return v1 + v2
+return function(x)
+    if x+1 then
+        return 1
+    else
+        return 0
+    end
 end
 
-local M = {}
+--return function(f)
+--    return function(x)
+--        return f(x + 1)
+--    end
+--end
 
-function M.strlen(s)
-    return #s
-end
+-- return 1 + 2 + 3, 'a'..'b'
+-- return 'a' .. 1
+-- return 1 + 1
 
-local function printfmt(fmt, ...)
-    print(string.format(fmt, ...))
-end
+--if true then
+--    return 1
+--else
+--    return 2
+--end
 
--- OK
-add(1, 2)
-M.strlen('foo')
-printfmt('ok')
-printfmt('%s', true)
+--if true then
+--    return 1
+--else
+--    return true
+--end
 
--- ERROR
-add(1)
-add(1, 2, 3)
-M.strlen('foo', 1)
-printfmt()
+--local function add(v1, v2)
+--    return v1 + v2
+--end
+--
+--local M = {}
+--
+--function M.strlen(s)
+--    return #s
+--end
+--
+--local function printfmt(fmt, ...)
+--    print(string.format(fmt, ...))
+--end
+--
+---- OK
+--add(1, 2)
+--M.strlen('foo')
+--printfmt('ok')
+--printfmt('%s', true)
+--
+---- ERROR
+--add(1)
+--add(1, 2, 3)
+--M.strlen('foo', 1)
+--printfmt()

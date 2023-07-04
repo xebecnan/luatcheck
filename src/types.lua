@@ -53,6 +53,7 @@ function M.is_bottom_type(t)
     return v.parent == '__ALL_TYPES__'
 end
 
+-- t1 是 t2 的子类型
 function M.is_subtype_of(t1, t2)
     if M.is_bottom_type(t1) then
         return true

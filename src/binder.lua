@@ -17,7 +17,9 @@ local convert_type
 local function convert_type_aux(ast)
     if ast.tag == 'TypeFunction' then
         return { tag='TypeFunction', is_require=ast.is_require, convert_type(ast[1]), convert_type(ast[2]) }
-    elseif ast.tag == 'Id' then
+    end
+
+    if ast.tag == 'Id' then
         local typename = ast[1]
 
         -- 基础类型
@@ -33,16 +35,21 @@ local function convert_type_aux(ast)
         end
 
         return { tag='TypeAlias', typename, ti }
+    end
 
-    elseif ast.tag == 'VarArg' then
+    if ast.tag == 'VarArg' then
         return { tag='VarArg' }
-    elseif ast.tag == 'TypeArgList' then
+    end
+
+    if ast.tag == 'TypeArgList' then
         local nn = { tag='TypeArgList'}
         for i = 1, #ast do
             nn[i] = convert_type(ast[i])
         end
         return nn
-    elseif ast.tag == 'TypeObj' then
+    end
+
+    if ast.tag == 'TypeObj' then
         local keys = ast.keys
         local hash = ast.hash
         local nn = { tag='TypeObj', keys=keys, hash=hash, open=ast.open }
@@ -54,11 +61,13 @@ local function convert_type_aux(ast)
         --     nn[i+1] = convert_type(ast[i+1])
         -- end
         return nn
-    -- elseif ast.tag == 'CloseTypeObj' then
-    --     return { tag='CloseTypeObj' }
-    else
-        error('unknown type node tag: ' .. ast.tag)
     end
+
+    -- if ast.tag == 'CloseTypeObj' then
+    --     return { tag='CloseTypeObj' }
+    -- end
+
+    error('unknown type node tag: ' .. ast.tag)
 end
 
 convert_type = function(ast)

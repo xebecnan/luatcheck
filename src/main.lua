@@ -4,6 +4,7 @@ local Parser = require('parser')
 local Scoper = require('scoper')
 local Binder = require('binder')
 local Builtin = require('builtin')
+local TypeInferer = require('typeinferer')
 local Typechecker = require('typechecker')
 local Reporter = require 'reporter'
 local SerializeAst = require 'serialize_ast'
@@ -47,6 +48,12 @@ local function check_file(c, filename, dump_mode)
         local ok, msg
 
         ok, msg = xpcall(Binder, msgh, root)
+        if not ok then
+            print(msg)
+            return
+        end
+
+        ok, msg = xpcall(TypeInferer, msgh, root)
         if not ok then
             print(msg)
             return
