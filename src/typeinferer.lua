@@ -77,6 +77,8 @@ local t_integer     = stype{ tag='SimpleType', 'integer' }
 local t_float       = stype{ tag='SimpleType', 'float' }
 local t_number      = stype{ tag='SimpleType', 'number' }
 local t_str         = stype{ tag='SimpleType', 'str' }
+-- TODO: 细分 table 类型?
+local t_table       = stype{ tag='SimpleType', 'table' }
 local t_never       = stype{ tag='SimpleType', 'never' }
 
 local parent_def = {
@@ -268,7 +270,35 @@ local function add_solution(ss, type_var, t)
     print(sf('    (S) %s => %s', type_var, t))
 end
 
-local function unification_step(v, h, s, ss)
+local function try_unificate_var_simple(ss, t1, t2)
+    if is_type_var(t1) and is_simple_type(t2) then
+        -- s[#s+1] = { t1, t2 }
+        -- ss[#ss+1] = { t1, t2 }  -- t1 -> t2
+        add_solution(ss, t1, t2)
+        return true
+    end
+
+    if is_simple_type(t1) and is_type_var(t2) then
+        return try_unificate_var_simple(ss, t2, t1)
+    end
+
+    return false
+end
+
+local function try_unificate_var_args(ss, t1, t2)
+    if is_type_var(t1) and is_args_type(t2) then
+        add_solution(ss, t1, t2)
+        return true
+    end
+
+    if is_args_type(t1) and is_type_var(t2) then
+        return try_unificate_var_args(ss, t2, t1)
+    end
+
+    return false
+end
+
+local function unification_step(v, h, ss)
     -- t1: given
     -- t2: require
     local t1, t2 = v[1], v[2]
@@ -285,30 +315,38 @@ local function unification_step(v, h, s, ss)
     --    return nil
     --end
 
-    if is_simple_type(t1) and is_type_var(t2) then
-        -- s[#s+1] = { t2, t1 }
-        -- ss[#ss+1] = { t2, t1 }  -- t2 -> t1
-        add_solution(ss, t2, t1)
+    -- 类型变量 <-> 简单类型: 添加 solution
+    if try_unificate_var_simple(ss, t1, t2) then
         return nil
     end
 
-    if is_type_var(t1) and is_simple_type(t2) then
-        -- s[#s+1] = { t1, t2 }
-        -- ss[#ss+1] = { t1, t2 }  -- t1 -> t2
-        add_solution(ss, t1, t2)
+    -- 类型变量 <-> 变长数组: 添加 solution
+    if try_unificate_var_args(ss, t1, t2) then
         return nil
     end
 
-    if is_args_type(t1) and is_type_var(t2) then
-        add_solution(ss, t2, t1)
-        return nil
+    -- 类型变量 <-> 类型变量: 添加 solution
+    if is_type_var(t1) and is_type_var(t2) then
+        local st1 = t1.st
+        local st2 = t2.st
+        if st1:is_equal_to(st2, false) then
+            return nil
+        end
+
+        if is_subtype_of(st1, st2) then
+            t2:narrow(st1)
+            return nil
+        end
+
+        if is_subtype_of(st2, st1) then
+            t1:narrow(st2)
+            return nil
+        end
+
+        print('类型变量无法匹配', t1, t2)
     end
 
-    if is_type_var(t1) and is_args_type(t2) then
-        add_solution(ss, t1, t2)
-        return nil
-    end
-
+    -- 函数类型 <-> 函数类型: 添加新的约束
     if is_func_type(t1) and is_func_type(t2) then
         h[#h+1] = { t1.args, t2.args }
         h[#h+1] = { t1.rets, t2.rets }
@@ -317,10 +355,11 @@ local function unification_step(v, h, s, ss)
         return nil
     end
 
+    -- 变长数组 <-> 变长数组: 添加新的约束
     if is_args_type(t1) and is_args_type(t2) then
-        local n = math.max(#t1.arg_types, #t2.arg_types)
+        local n = math.min(#t1.arg_types, #t2.arg_types)
         for i = 1, n do
-            h[#h+1] = { t1.arg_types[i] or t_any, t2.arg_types[i] or t_any }
+            h[#h+1] = { t1.arg_types[i], t2.arg_types[i] }
             print(sf('  [C] %s == %s', t1.arg_types[i], t2.arg_types[i]))
         end
         return nil
@@ -332,48 +371,63 @@ local function unification_step(v, h, s, ss)
     return true
 end
 
-local function substitute_aux(v, sub)
-    local fr, to = sub[1], sub[2]
-    -- print('substitute_aux', v, '|', fr, to)
+local function substitute_type(t, solution)
+    local fr, to = solution[1], solution[2]
+    -- print('substitute_type', t, '|', fr, to)
     assert(is_type_var(fr))
 
-    if is_func_type(v) then
-        return create_func_type(substitute_aux(v.args, sub), substitute_aux(v.rets, sub))
+    -- 当 t 是函数类型
+    if is_func_type(t) then
+        local args = substitute_type(t.args, solution)
+        local rets = substitute_type(t.rets, solution)
+        return create_func_type(args, rets)
     end
 
-    if is_args_type(v) then
+    -- 当 t 是可变长数组
+    if is_args_type(t) then
         local h = {}
-        array_map_append(v.arg_types, h, substitute_aux, sub)
+        array_map_append(t.arg_types, h, substitute_type, solution)
         return create_args_type(h)
     end
 
-    -- FIXME: 要不要用 type equal 来判断相等?
-    if v == fr then
-        -- print('NARROW', v, to)
-        v:narrow(to)
-        return v
+    -- FIXME: 要不要用 type is_equal_to 来判断相等?
+    if t == fr then
+        -- print('NARROW', t, to)
+        t:narrow(to)
+        return t
     else
-        return v
+        return t
     end
 end
 
 local function do_subtitution(h, sub)
-    for _, v in ipairs(h) do
-        v[1] = substitute_aux(v[1], sub)
-        v[2] = substitute_aux(v[2], sub)
+    for _, t in ipairs(h) do
+        -- 对约束的左右两边都做替换
+        t[1] = substitute_type(t[1], sub)
+        t[2] = substitute_type(t[2], sub)
     end
 end
 
 local function do_unificaion(c, s)
     local unification_error = false
     local h = {}
+
+    -- 将所有收集到的约束条件放到 h 中
     array_append_to(c, h)
 
+    -- 开始 unification
     print('-- start unification ------------------------')
+
+    -- ss 存放当前 step 新产生的解
     local ss = {}
+
+    -- 循环直到解决所有约束条件
     while #h > 0 do
+        -- 取出一个约束条件来解决
         local v = table.remove(h, 1)
-        local err = unification_step(v, h, s, ss)
+
+        -- 尝试解决当前约束条件
+        local err = unification_step(v, h, ss)
         for i = #ss, 1, -1 do
             local sub = ss[i]
             ss[i] = nil
@@ -408,7 +462,15 @@ function F.Id(ast, env, C)
 end
 
 function F.Block(ast, env, C)
-    return inferer_func(ast[1], env, C)
+    if #ast <= 0 then
+        return create_args_type{ t_nil }
+    end
+
+    local t = t_nil
+    for i = 1, #ast do
+        t = inferer_func(ast[i], env, C)
+    end
+    return t
 end
 
 function F.Return(ast, env, C)
@@ -456,14 +518,33 @@ function F.Str(ast, env, C)
     return t_str
 end
 
+function F.Table(ast, env, C)
+    return t_table
+end
+
+local function check_id(n_node)
+    assert(n_node.tag == 'Id')
+    return n_node[1]
+end
+
+function F.Local(ast, env, C)
+    local n_namelist = ast[1]
+    local n_explist = ast[2]
+    for  i = 1, #n_namelist do
+        local name = check_id(n_namelist[i])
+        env[name] = inferer_func(n_explist[i], env, C)
+    end
+end
+
 local function resolve(t, c)
     local s = {}
     local err = do_unificaion(c, s)
     if err then
         return nil, 'type error'
     end
+    print('<<<<resolve>>>> #s:', #s, 't:', t)
     for _, sub in ipairs(s) do
-        t = substitute_aux(t, sub)
+        t = substitute_type(t, sub)
         if is_simple_type(t) then
             break
         end
@@ -476,12 +557,14 @@ function F.If(ast, env, C)
     local t = create_type_variable()
     print('IF:', t)
     for i = 1, #ast, 2 do
-        -- 约束: 条件的类型必须为 any
-        local cond_type = inferer_func(ast[i], env, C)
-        C[#C+1] = { cond_type, t_any }
-        print(sf('  [C] %s == %s', cond_type, t_any))
+        -- 想想约束为 any 好像没有什么意义?
+        --   -- 约束: 条件的类型必须为 any
+        --   local cond_type = inferer_func(ast[i], env, C)
+        --   C[#C+1] = { cond_type, t_any }
+        --   print(sf('  [C] %s == %s', cond_type, t_any))
 
-        -- 约束: 分支的类型必须与 t 相同
+        -- 约束: 每个分支的类型必须与 t 相同
+        -- 思考: 如果只考虑一个分支的话，那可以不创建约束，直接返回分支的类型
         local body_type = inferer_func(ast[i+1], env, C)
         C[#C+1] = { body_type, t }
         print(sf('  [C] %s == %s', t, body_type))
@@ -502,7 +585,7 @@ function F.If(ast, env, C)
     --     ast_error(ast, 'type error')
     -- end
     -- for _, sub in ipairs(s) do
-    --     t = substitute_aux(t, sub)
+    --     t = substitute_type(t, sub)
     --     if is_simple_type(t) then
     --         break
     --     end
@@ -529,11 +612,13 @@ local string_binopr_map = {
 function F.BinOpr(ast, env, C)
     local op, n1, n2 = ast[1], ast[2], ast[3]
 
+    -- 创建类型变量作为二元操作符的返回类型
     local t = create_type_variable()
     print(sf('BinOpr %s: %s', op, t))
 
     local t1 = inferer_func(n1, env, C)
     local t2 = inferer_func(n2, env, C)
+    print(sf('BinOpr t1: %s t2: %s', t1, t2))
 
     local args1 = create_args_type{ t1, t2 }
     local rets1 = create_args_type{ t }
@@ -660,24 +745,35 @@ end
 local function reg_number_binopr(env)
     local args = create_args_type{ t_number, t_number }
     local rets = create_args_type{ t_number }
-    local func = create_func_type(args, rets)
+    local func_type = create_func_type(args, rets)
     for op in pairs(number_binopr_map) do
-        env[op] = func
+        env[op] = func_type
     end
 end
 
 local function reg_string_binopr(env)
     local args = create_args_type{ t_str, t_str }
     local rets = create_args_type{ t_str }
-    local func = create_func_type(args, rets)
+    local func_type = create_func_type(args, rets)
     for op in pairs(string_binopr_map) do
-        env[op] = func
+        env[op] = func_type
     end
+end
+
+local function reg_logical_binopr(env)
+    local t1 = create_type_variable()
+    local t2 = create_type_variable()
+
+    local args = create_args_type{ t1, t2 }
+    local rets = create_args_type{ t2 }
+    local func_type = create_func_type(args, rets)
+    env['and'] = func_type
 end
 
 local function reg_buildtin(env)
     reg_number_binopr(env)
     reg_string_binopr(env)
+    reg_logical_binopr(env)
 end
 
 -- return function(ast)

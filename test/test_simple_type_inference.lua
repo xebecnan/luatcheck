@@ -1,10 +1,20 @@
-return function(x)
-    if x+1 then
-        return 1
-    else
-        return 0
-    end
+return function()
+    local a = 1
+    local b = 212
+    local c = 'x'
+    -- type(false and t) -> bool
+    -- type(nil and t) -> nil
+    -- type(other and t) -> t
+    return (a and b) and c
 end
+
+-- return function(x)
+--     if x+1 then
+--         return 1
+--     else
+--         return 0
+--     end
+-- end
 
 --return function(f)
 --    return function(x)
